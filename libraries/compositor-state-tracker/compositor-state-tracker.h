@@ -6,6 +6,7 @@
 
 #include <gio/gio.h>
 
+#include "compositor-ipc-client.h"
 #include "compositor-window-tree.h"
 #include "window-focus-history.h"
 
@@ -26,6 +27,8 @@ struct compositor_state_tracker_handler {
     void (*handle_key_binding_command)(void *user_data, const char *command);
     /* The compositor is exiting or the connection broke. May destroy. */
     void (*handle_compositor_gone)(void *user_data);
+    /* Optional: the compositor reloaded its configuration ("swaymsg reload"). */
+    void (*handle_compositor_configuration_reloaded)(void *user_data);
 };
 
 struct compositor_state_tracker *compositor_state_tracker_connect(
@@ -46,5 +49,17 @@ const struct compositor_window_tree *compositor_state_tracker_get_window_tree(st
 const struct window_focus_history   *compositor_state_tracker_get_focus_history(struct compositor_state_tracker *tracker);
 
 void compositor_state_tracker_focus_window(struct compositor_state_tracker *tracker, int64_t container_id);
+
+/* Asks the compositor to close the window, as its close button would. */
+void compositor_state_tracker_close_window(struct compositor_state_tracker *tracker, int64_t container_id);
+
+/*
+ * Title changes are ignored by default, as most components never show a
+ * title. Turn them on for a component whose labels include the title.
+ */
+void compositor_state_tracker_follow_title_changes(struct compositor_state_tracker *tracker, bool follows_title_changes);
+
+/* For further requests, such as reading the bar's appearance. */
+struct compositor_ipc_client *compositor_state_tracker_get_ipc_client(struct compositor_state_tracker *tracker);
 
 #endif

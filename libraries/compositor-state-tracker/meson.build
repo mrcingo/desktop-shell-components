@@ -11,6 +11,7 @@ compositor_state_tracker_dependency = declare_dependency(
     ),
     include_directories: include_directories('.'),
     dependencies: [
+        compositor_ipc_client_dependency,
         compositor_window_tree_dependency,
         gio_dependency,
         window_focus_history_dependency,

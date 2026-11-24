@@ -10,6 +10,7 @@ static const char subscribed_event_names[] = "[\"window\", \"workspace\", \"outp
 struct compositor_state_tracker {
     const struct compositor_state_tracker_handler *handler;
     void                                          *user_data;
+    bool                                           follows_title_changes;
     struct compositor_ipc_client                  *ipc_client;
 
     struct compositor_window_tree *window_tree; // NULL until the first reply
@@ -149,6 +150,19 @@ is_window_list_change(
     return false;
 }
 
+static bool
+title_change_matters(
+    struct compositor_state_tracker *tracker,
+    JsonObject                      *event
+)
+{
+    if (tracker->follows_title_changes) {
+        return true;
+    }
+
+    return compositor_window_name_comes_from_title(typed_json_lookup_object_member(event, "container"));
+}
+
 /*
  * Title, mark, urgency and fullscreen changes are frequent (a terminal
  * retitles on every command) and change nothing the components show,
@@ -156,7 +170,8 @@ is_window_list_change(
  */
 static bool
 window_event_changes_tree(
-    JsonObject *event
+    struct compositor_state_tracker *tracker,
+    JsonObject                      *event
 )
 {
     const char *change = typed_json_lookup_string_member(event, "change");
@@ -169,7 +184,7 @@ window_event_changes_tree(
         return false;
     }
 
-    return compositor_window_name_comes_from_title(typed_json_lookup_object_member(event, "container"));
+    return title_change_matters(tracker, event);
 }
 
 static void
@@ -197,7 +212,7 @@ handle_window_event(
 {
     update_focus_history(tracker, event);
 
-    if (window_event_changes_tree(event)) {
+    if (window_event_changes_tree(tracker, event)) {
         request_window_tree(tracker);
     }
 }
@@ -228,6 +243,34 @@ handle_layout_event(
 }
 
 static void
+report_configuration_reload(
+    struct compositor_state_tracker *tracker
+)
+{
+    if (tracker->handler->handle_compositor_configuration_reloaded == NULL) {
+        return;
+    }
+
+    tracker->handler->handle_compositor_configuration_reloaded(tracker->user_data);
+}
+
+/* sway reports a configuration reload as a workspace event with change "reload". */
+static void
+handle_workspace_event(
+    struct compositor_state_tracker *tracker,
+    JsonObject                      *event
+)
+{
+    const char *change = typed_json_lookup_string_member(event, "change");
+
+    if (g_strcmp0(change, "reload") == 0) {
+        report_configuration_reload(tracker);
+    }
+
+    request_window_tree(tracker);
+}
+
+static void
 handle_shutdown_event(
     struct compositor_state_tracker *tracker,
     JsonObject                      *event
@@ -241,11 +284,11 @@ static const struct {
 
     void (*handle)(struct compositor_state_tracker *tracker, JsonObject *event);
 } event_handlers[] = {
-    {COMPOSITOR_IPC_EVENT_WINDOW_CHANGED,           handle_window_event  },
-    {COMPOSITOR_IPC_EVENT_WORKSPACE_CHANGED,        handle_layout_event  },
-    {COMPOSITOR_IPC_EVENT_OUTPUT_CHANGED,           handle_layout_event  },
-    {COMPOSITOR_IPC_EVENT_KEY_BINDING_TRIGGERED,    handle_binding_event },
-    {COMPOSITOR_IPC_EVENT_COMPOSITOR_SHUTTING_DOWN, handle_shutdown_event},
+    {COMPOSITOR_IPC_EVENT_WINDOW_CHANGED,           handle_window_event   },
+    {COMPOSITOR_IPC_EVENT_WORKSPACE_CHANGED,        handle_workspace_event},
+    {COMPOSITOR_IPC_EVENT_OUTPUT_CHANGED,           handle_layout_event   },
+    {COMPOSITOR_IPC_EVENT_KEY_BINDING_TRIGGERED,    handle_binding_event  },
+    {COMPOSITOR_IPC_EVENT_COMPOSITOR_SHUTTING_DOWN, handle_shutdown_event },
 };
 
 static void
@@ -411,14 +454,50 @@ compositor_state_tracker_get_focus_history(
     return tracker->focus_history;
 }
 
+static void
+run_command_on_window(
+    struct compositor_state_tracker *tracker,
+    int64_t                          container_id,
+    const char                      *command
+)
+{
+    char *addressed_command = g_strdup_printf("[con_id=%" PRId64 "] %s", container_id, command);
+
+    compositor_ipc_client_send_request(tracker->ipc_client, COMPOSITOR_IPC_REQUEST_RUN_COMMAND, addressed_command, NULL, NULL);
+    g_free(addressed_command);
+}
+
 void
 compositor_state_tracker_focus_window(
     struct compositor_state_tracker *tracker,
     int64_t                          container_id
 )
 {
-    char *command = g_strdup_printf("[con_id=%" PRId64 "] focus", container_id);
+    run_command_on_window(tracker, container_id, "focus");
+}
 
-    compositor_ipc_client_send_request(tracker->ipc_client, COMPOSITOR_IPC_REQUEST_RUN_COMMAND, command, NULL, NULL);
-    g_free(command);
+void
+compositor_state_tracker_close_window(
+    struct compositor_state_tracker *tracker,
+    int64_t                          container_id
+)
+{
+    run_command_on_window(tracker, container_id, "kill");
+}
+
+void
+compositor_state_tracker_follow_title_changes(
+    struct compositor_state_tracker *tracker,
+    bool                             follows_title_changes
+)
+{
+    tracker->follows_title_changes = follows_title_changes;
+}
+
+struct compositor_ipc_client *
+compositor_state_tracker_get_ipc_client(
+    struct compositor_state_tracker *tracker
+)
+{
+    return tracker->ipc_client;
 }

@@ -84,6 +84,8 @@ destroy_window(
     struct compositor_window *window = data;
 
     g_free(window->application_name);
+    g_free(window->title);
+    g_free(window->workspace_name);
     g_free(window->toplevel_capture_identifier);
     g_free(window);
 }
@@ -161,21 +163,46 @@ lookup_process_id(
     return (int)process_id;
 }
 
+static char *
+copy_string_member_or_empty(
+    JsonObject *node,
+    const char *member_name
+)
+{
+    const char *value = typed_json_lookup_string_member(node, member_name);
+
+    if (value == NULL) {
+        return g_strdup("");
+    }
+
+    return g_strdup(value);
+}
+
 static struct compositor_window *
 parse_window(
-    JsonObject *window_node
+    JsonObject *window_node,
+    const char *workspace_name
 )
 {
     struct compositor_window *window = g_new0(struct compositor_window, 1);
 
-    window->container_id                = tree_node_id(window_node);
-    window->application_name            = describe_application_name(window_node);
-    window->process_id                  = lookup_process_id(window_node);
-    window->toplevel_capture_identifier = g_strdup(typed_json_lookup_string_member(window_node, "foreign_toplevel_identifier"));
-    window->has_keyboard_focus          = typed_json_lookup_boolean_member(window_node, "focused", false);
+    *window = (struct compositor_window){
+        .container_id                = tree_node_id(window_node),
+        .application_name            = describe_application_name(window_node),
+        .title                       = copy_string_member_or_empty(window_node, "name"),
+        .workspace_name              = g_strdup(workspace_name),
+        .process_id                  = lookup_process_id(window_node),
+        .toplevel_capture_identifier = g_strdup(typed_json_lookup_string_member(window_node, "foreign_toplevel_identifier")),
+        .has_keyboard_focus          = typed_json_lookup_boolean_member(window_node, "focused", false),
+    };
 
     return window;
 }
+
+struct window_collection {
+    GPtrArray  *windows;
+    const char *workspace_name;
+};
 
 static void
 collect_windows_in_layout_order(
@@ -183,14 +210,29 @@ collect_windows_in_layout_order(
     void       *user_data
 )
 {
-    GPtrArray *windows = user_data;
+    struct window_collection *collection = user_data;
 
     if (!tree_node_is_window(tree_node)) {
-        visit_child_nodes(tree_node, collect_windows_in_layout_order, windows);
+        visit_child_nodes(tree_node, collect_windows_in_layout_order, collection);
         return;
     }
 
-    g_ptr_array_add(windows, parse_window(tree_node));
+    g_ptr_array_add(collection->windows, parse_window(tree_node, collection->workspace_name));
+}
+
+/* Tiled windows in layout order, then floating ones. */
+static void
+collect_workspace_windows(
+    JsonObject *workspace_node,
+    GPtrArray  *windows
+)
+{
+    struct window_collection collection = {
+        .windows        = windows,
+        .workspace_name = typed_json_lookup_string_member(workspace_node, "name"),
+    };
+
+    visit_child_nodes(workspace_node, collect_windows_in_layout_order, &collection);
 }
 
 struct child_search {
@@ -318,7 +360,7 @@ collect_visible_workspace(
 
     output->space_reserved_above_workspace = rectangle_top_edge(visible_workspace) - rectangle_top_edge(output_node);
 
-    visit_child_nodes(visible_workspace, collect_windows_in_layout_order, output->windows_on_visible_workspace);
+    collect_workspace_windows(visible_workspace, output->windows_on_visible_workspace);
 }
 
 static struct compositor_output *
@@ -360,6 +402,35 @@ collect_visible_output(
     g_ptr_array_add(collection->outputs, parse_output(output_node, collection->focused_output_node));
 }
 
+static void
+collect_all_windows_of_workspace(
+    JsonObject *workspace_node,
+    void       *user_data
+)
+{
+    collect_workspace_windows(workspace_node, user_data);
+}
+
+/* The scratchpad's hidden output holds no window a user can see. */
+static void
+collect_all_windows_of_output(
+    JsonObject *output_node,
+    void       *user_data
+)
+{
+    const char *output_name = typed_json_lookup_string_member(output_node, "name");
+
+    if (output_name == NULL) {
+        return;
+    }
+
+    if (is_hidden_output_name(output_name)) {
+        return;
+    }
+
+    visit_child_nodes(output_node, collect_all_windows_of_workspace, user_data);
+}
+
 static bool
 is_root_node(
     JsonObject *root
@@ -384,6 +455,7 @@ create_empty_tree(void)
     struct compositor_window_tree *tree = g_new0(struct compositor_window_tree, 1);
 
     tree->outputs                   = g_ptr_array_new_with_free_func(destroy_output);
+    tree->all_windows               = g_ptr_array_new_with_free_func(destroy_window);
     tree->window_ids_in_focus_order = g_array_new(FALSE, FALSE, sizeof(int64_t));
 
     return tree;
@@ -403,6 +475,17 @@ collect_visible_outputs(
     visit_child_nodes(root, collect_visible_output, &collection);
 }
 
+static void
+fill_tree(
+    struct compositor_window_tree *tree,
+    JsonObject                    *root
+)
+{
+    collect_visible_outputs(root, tree->outputs);
+    visit_child_nodes(root, collect_all_windows_of_output, tree->all_windows);
+    collect_window_ids_in_focus_order(root, tree->window_ids_in_focus_order);
+}
+
 struct compositor_window_tree *
 compositor_window_tree_parse(
     JsonNode *root_node
@@ -416,8 +499,7 @@ compositor_window_tree_parse(
 
     struct compositor_window_tree *tree = create_empty_tree();
 
-    collect_visible_outputs(root, tree->outputs);
-    collect_window_ids_in_focus_order(root, tree->window_ids_in_focus_order);
+    fill_tree(tree, root);
 
     return tree;
 }
@@ -432,6 +514,7 @@ compositor_window_tree_destroy(
     }
 
     g_ptr_array_unref(tree->outputs);
+    g_ptr_array_unref(tree->all_windows);
     g_array_unref(tree->window_ids_in_focus_order);
     g_free(tree);
 }

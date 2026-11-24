@@ -257,6 +257,41 @@ test_only_unnamed_windows_take_their_title(void)
     g_object_unref(parser);
 }
 
+static const struct compositor_window *
+window_in_list(
+    GPtrArray *windows,
+    guint      window_index
+)
+{
+    g_assert_cmpuint(window_index, <, windows->len);
+
+    return g_ptr_array_index(windows, window_index);
+}
+
+static void
+assert_title_and_workspace(
+    const struct compositor_window *window,
+    const char                     *expected_title,
+    const char                     *expected_workspace
+)
+{
+    g_assert_cmpstr(window->title, ==, expected_title);
+    g_assert_cmpstr(window->workspace_name, ==, expected_workspace);
+}
+
+/* Every workspace of every output, hidden workspaces included, scratchpad excluded. */
+static void
+test_all_windows_carry_title_and_workspace(void)
+{
+    struct parsed_example_tree example = load_example_tree();
+    GPtrArray                 *windows = example.tree->all_windows;
+
+    g_assert_cmpuint(windows->len, ==, 6);
+    assert_title_and_workspace(window_in_list(windows, 0), "Some page", "1");
+    assert_title_and_workspace(window_in_list(windows, 4), "hidden", "2");
+    unload_example_tree(&example);
+}
+
 static const struct {
     const char *test_path;
 
@@ -270,6 +305,7 @@ static const struct {
     {"/compositor-window-tree/not-trees",             test_documents_that_are_not_trees_are_rejected   },
     {"/compositor-window-tree/outputs-without-names", test_outputs_without_names_are_skipped           },
     {"/compositor-window-tree/name-from-title",       test_only_unnamed_windows_take_their_title       },
+    {"/compositor-window-tree/all-windows",           test_all_windows_carry_title_and_workspace       },
 };
 
 int

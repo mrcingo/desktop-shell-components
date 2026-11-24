@@ -17,6 +17,8 @@ struct compositor_window {
     int64_t container_id;
 
     char *application_name; // app_id, X11 class or title, never NULL
+    char *title;            // never NULL
+    char *workspace_name;   // never NULL
     int   process_id;
 
     char *toplevel_capture_identifier; // NULL if the compositor has none
@@ -34,6 +36,7 @@ struct compositor_output {
 
 struct compositor_window_tree {
     GPtrArray *outputs;                   // struct compositor_output
+    GPtrArray *all_windows;               // struct compositor_window on every workspace
     GArray    *window_ids_in_focus_order; // int64_t, most recent first
 };
 

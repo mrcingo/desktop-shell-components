@@ -24,6 +24,7 @@ enum compositor_ipc_request_type {
     COMPOSITOR_IPC_REQUEST_RUN_COMMAND         = 0,
     COMPOSITOR_IPC_REQUEST_SUBSCRIBE_TO_EVENTS = 2,
     COMPOSITOR_IPC_REQUEST_GET_WINDOW_TREE     = 4,
+    COMPOSITOR_IPC_REQUEST_GET_BAR_CONFIG      = 6,
 };
 
 /* Macros, as C11 enumerators cannot exceed INT_MAX. */
