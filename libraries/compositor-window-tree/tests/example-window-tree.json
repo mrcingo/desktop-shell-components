@@ -1,0 +1,89 @@
+{
+	"id": 1, "type": "root", "name": "root", "focus": [3, 2],
+	"rect": { "x": 0, "y": 0, "width": 3840, "height": 1200 },
+	"nodes": [
+		{
+			"id": 2147483647, "type": "output", "name": "__i3", "focus": [],
+			"rect": { "x": 0, "y": 0, "width": 1920, "height": 1200 },
+			"nodes": [], "floating_nodes": []
+		},
+		{
+			"id": 2, "type": "output", "name": "eDP-1", "focus": [10, 20],
+			"rect": { "x": 0, "y": 0, "width": 1920, "height": 1200 },
+			"floating_nodes": [],
+			"nodes": [
+				{
+					"id": 10, "type": "workspace", "name": "1", "focus": [12, 15, 11],
+					"rect": { "x": 0, "y": 22, "width": 1920, "height": 1156 },
+					"nodes": [
+						{
+							"id": 11, "type": "con", "name": "Some page",
+							"app_id": "google-chrome", "pid": 2210,
+							"foreign_toplevel_identifier": "aaaa",
+							"focused": false, "focus": [],
+							"nodes": [], "floating_nodes": []
+						},
+						{
+							"id": 12, "type": "con", "name": null, "focus": [14, 13],
+							"nodes": [
+								{
+									"id": 13, "type": "con", "name": "xterm",
+									"app_id": null, "pid": 300,
+									"window_properties": { "class": "XTerm" },
+									"foreign_toplevel_identifier": "bbbb",
+									"focused": false, "focus": [],
+									"nodes": [], "floating_nodes": []
+								},
+								{
+									"id": 14, "type": "con", "name": "~",
+									"app_id": "foot", "pid": 4123,
+									"focused": false, "focus": [],
+									"nodes": [], "floating_nodes": []
+								}
+							],
+							"floating_nodes": []
+						}
+					],
+					"floating_nodes": [
+						{
+							"id": 15, "type": "floating_con", "name": "calc",
+							"app_id": "", "pid": 77, "focused": false, "focus": [],
+							"nodes": [], "floating_nodes": []
+						}
+					]
+				},
+				{
+					"id": 20, "type": "workspace", "name": "2", "focus": [21],
+					"rect": { "x": 0, "y": 22, "width": 1920, "height": 1156 },
+					"nodes": [
+						{
+							"id": 21, "type": "con", "name": "hidden",
+							"app_id": "foot", "pid": 5, "focused": false,
+							"focus": [], "nodes": [], "floating_nodes": []
+						}
+					],
+					"floating_nodes": []
+				}
+			]
+		},
+		{
+			"id": 3, "type": "output", "name": "HDMI-A-1", "focus": [30],
+			"rect": { "x": 1920, "y": 0, "width": 1920, "height": 1080 },
+			"floating_nodes": [],
+			"nodes": [
+				{
+					"id": 30, "type": "workspace", "name": "3", "focus": [31],
+					"rect": { "x": 1920, "y": 22, "width": 1920, "height": 1036 },
+					"nodes": [
+						{
+							"id": 31, "type": "con", "name": "notes",
+							"app_id": "foot", "pid": 900, "focused": true,
+							"focus": [], "nodes": [], "floating_nodes": []
+						}
+					],
+					"floating_nodes": []
+				}
+			]
+		}
+	]
+}

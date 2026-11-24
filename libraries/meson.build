@@ -1,3 +1,8 @@
 # In dependency order: each library may only use the ones above it.
 subdir('typed-json-member-lookup')
 subdir('framed-message-stream')
+subdir('compositor-ipc-message-format')
+subdir('compositor-ipc-client')
+subdir('compositor-window-tree')
+subdir('window-focus-history')
+subdir('compositor-state-tracker')
