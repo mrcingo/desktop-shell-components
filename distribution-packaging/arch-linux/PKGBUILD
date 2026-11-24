@@ -8,10 +8,11 @@ pkgname=(
     desktop-shell-login-greeter
     desktop-shell-workspace-window-bar
     desktop-shell-window-switcher
+    desktop-shell-window-title-format
 )
-pkgver=1.1.0
+pkgver=1.2.0
 pkgrel=1
-pkgdesc='Login screen, window bar and Alt+Tab switcher for sway'
+pkgdesc='Login screen, window bar, Alt+Tab switcher and title bar text for sway'
 arch=(x86_64)
 license=(0BSD)
 makedepends=(
@@ -108,4 +109,19 @@ package_desktop-shell-window-switcher() {
     _take_program desktop-shell-window-switcher
     _take_files usr/share/desktop-shell-components/window-switcher.css etc/sway/config.d/60-desktop-shell-window-switcher.conf
     _take_files etc/xdg/desktop-shell-components/window-switcher.ini
+}
+
+package_desktop-shell-window-title-format() {
+    pkgdesc='Process ID in sway window title bars'
+    depends=(glib2 glibc json-glib sway)
+    backup=(
+        etc/sway/config.d/60-desktop-shell-window-title-format.conf
+        etc/xdg/desktop-shell-components/window-title-format.ini
+    )
+    install=desktop-shell-window-title-format.install
+
+    _install_into_staging
+    _take_program desktop-shell-window-title-format
+    _take_files etc/sway/config.d/60-desktop-shell-window-title-format.conf
+    _take_files etc/xdg/desktop-shell-components/window-title-format.ini
 }
