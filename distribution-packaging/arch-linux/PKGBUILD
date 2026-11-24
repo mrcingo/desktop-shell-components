@@ -1,0 +1,99 @@
+# Builds every desktop shell component as a separate package, so each
+# machine installs only the programs it uses. Builds the release tagged
+# v$pkgver on GitHub.
+
+pkgbase=desktop-shell-components
+pkgname=(
+    desktop-shell-components-common
+    desktop-shell-login-greeter
+    desktop-shell-workspace-window-bar
+    desktop-shell-window-switcher
+)
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='Small desktop components for wlroots compositors, sharing one theme'
+arch=(x86_64)
+license=(0BSD)
+makedepends=(
+    git
+    meson
+    scdoc
+    wayland-protocols
+)
+source=("$pkgbase::git+https://github.com/mrcingo/desktop-shell-components.git#tag=v$pkgver")
+sha256sums=('SKIP')
+
+build() {
+    arch-meson "$pkgbase" build -Dmanual-pages=enabled
+    meson compile -C build
+}
+
+check() {
+    meson test -C build --print-errorlogs
+}
+
+# Everything is installed once into a staging tree; each package then takes its own files.
+_install_into_staging() {
+    if [[ ! -d "$srcdir/staging" ]]; then
+        meson install -C build --destdir "$srcdir/staging"
+    fi
+}
+
+_take_files() {
+    local file
+    for file in "$@"; do
+        install -Dm644 "$srcdir/staging/$file" "$pkgdir/$file"
+    done
+}
+
+_take_license() {
+    install -Dm644 "$pkgbase/LICENSE" -t "$pkgdir/usr/share/licenses/$pkgname/"
+}
+
+_take_program() {
+    install -Dm755 "$srcdir/staging/usr/bin/$1" "$pkgdir/usr/bin/$1"
+    _take_files "usr/share/man/man1/$1.1"
+    _take_license
+}
+
+package_desktop-shell-components-common() {
+    pkgdesc='Shared theme of the desktop shell components'
+    depends=(otf-monaspace)
+
+    _install_into_staging
+    _take_files usr/share/desktop-shell-components/shared-theme.css
+    _take_license
+}
+
+package_desktop-shell-login-greeter() {
+    pkgdesc='Graphical login screen for the greetd login daemon'
+    depends=(desktop-shell-components-common glib2 glibc greetd gtk4 gtk4-layer-shell json-glib sway swaybg)
+    backup=(etc/greetd/login-greeter-compositor-configuration)
+    install=desktop-shell-login-greeter.install
+
+    _install_into_staging
+    _take_program desktop-shell-login-greeter
+    _take_files usr/share/desktop-shell-components/login-greeter.css etc/greetd/login-greeter-compositor-configuration
+}
+
+package_desktop-shell-workspace-window-bar() {
+    pkgdesc='Bar listing the windows of each workspace, for sway'
+    depends=(desktop-shell-components-common glib2 glibc gtk4 gtk4-layer-shell json-glib sway)
+    backup=(etc/sway/config.d/60-desktop-shell-workspace-window-bar.conf)
+    install=desktop-shell-workspace-window-bar.install
+
+    _install_into_staging
+    _take_program desktop-shell-workspace-window-bar
+    _take_files usr/share/desktop-shell-components/workspace-window-bar.css etc/sway/config.d/60-desktop-shell-workspace-window-bar.conf
+}
+
+package_desktop-shell-window-switcher() {
+    pkgdesc='Alt+Tab window switcher with live previews, for sway'
+    depends=(desktop-shell-components-common glib2 glibc gtk4 gtk4-layer-shell json-glib 'sway>=1.12' wayland)
+    backup=(etc/sway/config.d/60-desktop-shell-window-switcher.conf)
+    install=desktop-shell-window-switcher.install
+
+    _install_into_staging
+    _take_program desktop-shell-window-switcher
+    _take_files usr/share/desktop-shell-components/window-switcher.css etc/sway/config.d/60-desktop-shell-window-switcher.conf
+}

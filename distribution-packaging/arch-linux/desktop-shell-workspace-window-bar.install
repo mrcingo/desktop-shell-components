@@ -1,0 +1,7 @@
+post_install() {
+    echo ':: The bar starts with sway. To start it now, run: swaymsg reload'
+}
+
+post_upgrade() {
+    echo ':: The running bar keeps the old version until sway restarts.'
+}
