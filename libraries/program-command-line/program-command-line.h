@@ -4,12 +4,14 @@
 #include <stdbool.h>
 
 /*
- * The command line every desktop component accepts: --help and
- * --style FILE, which replaces the component's shipped style sheet.
+ * The command line every desktop component accepts: --help,
+ * --config FILE, which reads settings from FILE instead of the usual
+ * places, and --style FILE, which replaces the shipped style sheet.
  */
 
 struct program_command_line_options {
-    char *style_sheet_override_path; // NULL unless --style was given
+    char *configuration_override_path; // NULL unless --config was given
+    char *style_sheet_override_path;   // NULL unless --style was given
 };
 
 /* Prints the problem and returns false for an invalid command line. */

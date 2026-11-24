@@ -13,7 +13,7 @@ import sys
 CHECKED_SUFFIXES = (
     ".c", ".h", ".css", ".py", ".sh", ".build", ".options", ".scd", ".in",
     ".md", ".json", ".xml", ".clang-format", "PKGBUILD", "configuration",
-    ".install", ".conf", ".editorconfig",
+    ".install", ".conf", ".editorconfig", ".ini",
 )
 
 SKIPPED_DIRECTORIES = {".git", "__pycache__"}

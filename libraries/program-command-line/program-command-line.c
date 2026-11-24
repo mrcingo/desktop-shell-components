@@ -10,6 +10,14 @@ create_option_context(
 {
     const GOptionEntry option_entries[] = {
         {
+         .long_name       = "config",
+         .short_name      = 'c',
+         .arg             = G_OPTION_ARG_FILENAME,
+         .arg_data        = &options->configuration_override_path,
+         .description     = "Settings file to read instead of the usual places",
+         .arg_description = "FILE",
+         },
+        {
          .long_name       = "style",
          .short_name      = 's',
          .arg             = G_OPTION_ARG_FILENAME,
@@ -63,5 +71,6 @@ program_command_line_options_clear(
     struct program_command_line_options *options
 )
 {
+    g_clear_pointer(&options->configuration_override_path, g_free);
     g_clear_pointer(&options->style_sheet_override_path, g_free);
 }
