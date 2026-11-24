@@ -1,0 +1,85 @@
+# Layout for every C file in this repository, indented with spaces.
+#
+# Statements and declarations stay on one line up to 128 columns, so a line
+# reads continuously. Function definitions put the return type on its own
+# line and every parameter on its own line, aligned by type and name, with
+# the closing parenthesis and the opening brace on lines of their own.
+# Consecutive declarations, assignments, struct members, macros and trailing
+# comments are aligned. Blank lines between steps are added by
+# development-tools/apply-paragraph-spacing.py.
+---
+Language: Cpp
+BasedOnStyle: LLVM
+
+UseTab: Never
+TabWidth: 4
+IndentWidth: 4
+ContinuationIndentWidth: 4
+
+# Never break right after "=": a call that does not fit breaks after its
+# opening parenthesis instead, one argument per line, like a definition.
+PenaltyBreakAssignment: 1000
+PenaltyBreakBeforeFirstCallParameter: 0
+ColumnLimit: 128
+IndentCaseLabels: false
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterControlStatement: Never
+  AfterStruct: false
+  AfterEnum: false
+  AfterUnion: false
+  BeforeElse: false
+  SplitEmptyFunction: false
+BreakAfterReturnType: AllDefinitions
+BreakFunctionDefinitionParameters: true
+InsertBraces: true
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+
+AlignAfterOpenBracket: BlockIndent
+AlignOperands: Align
+AlignEscapedNewlines: Left
+AlignArrayOfStructures: Left
+AlignConsecutiveAssignments:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+  PadOperators: true
+AlignConsecutiveDeclarations:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+AlignConsecutiveMacros:
+  Enabled: true
+AlignConsecutiveBitFields:
+  Enabled: true
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 0
+
+BinPackArguments: false
+BinPackParameters: OnePerLine
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+
+PointerAlignment: Right
+SpaceAfterCStyleCast: false
+SeparateDefinitionBlocks: Always
+MaxEmptyLinesToKeep: 1
+KeepEmptyLines:
+  AtStartOfBlock: false
+  AtStartOfFile: false
+IncludeBlocks: Preserve
+SortIncludes: CaseSensitive
+ReflowComments: true
+
+# GLib's automatic cleanup macros read as part of a declaration's type.
+AttributeMacros: [g_autofree]
+TypenameMacros: [g_autoptr, g_auto, g_autolist, g_autoslist, g_autoqueue]
+...
