@@ -2,4 +2,5 @@
 subdir('login-greeter')
 subdir('workspace-window-bar')
 subdir('window-switcher')
+subdir('window-title-format')
 subdir('print-sway-theme')

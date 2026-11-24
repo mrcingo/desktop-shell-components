@@ -1,0 +1,7 @@
+# Starts the window title format with sway. Installed by
+# desktop-shell-window-title-format into /etc/sway/config.d, which sway's
+# default configuration includes. Starting it again on reload is harmless:
+# a second copy exits at once. Turn it off with "enabled = false" in
+# ~/.config/desktop-shell-components/window-title-format.ini.
+
+exec_always @bindir@/desktop-shell-window-title-format

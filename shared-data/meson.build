@@ -9,6 +9,7 @@ install_data(
 install_data(
     'default-settings/login-greeter.ini',
     'default-settings/window-switcher.ini',
+    'default-settings/window-title-format.ini',
     'default-settings/workspace-window-bar.ini',
     install_dir: get_option('sysconfdir') / 'xdg' / meson.project_name(),
 )

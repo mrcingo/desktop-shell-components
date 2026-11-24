@@ -11,6 +11,7 @@ Each library does one job. A library only uses the ones above it.
 | `compositor-window-tree`          | Outputs, visible windows and focus order from sway's layout tree |
 | `window-focus-history`            | Windows ordered by when they last had focus                      |
 | `window-label-format`             | Labels such as `{name} {pid}` for windows                        |
+| `window-title-format-command`     | The command that sets a window's title bar text                  |
 | `compositor-state-tracker`        | Keep the window tree and focus history current                   |
 | `compositor-bar-appearance`       | Read the sway bar's colors and font                              |
 | `login-daemon-protocol`           | Encode greetd requests and decode its replies                    |

@@ -1,0 +1,4 @@
+post_install() {
+    echo ':: Needs "default_border normal" and "font pango:..." in your sway configuration'
+    echo ':: Then run: swaymsg reload'
+}

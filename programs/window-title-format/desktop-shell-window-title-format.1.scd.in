@@ -1,0 +1,56 @@
+desktop-shell-window-title-format(1)
+
+# NAME
+
+desktop-shell-window-title-format - adds the process ID to window title bars
+
+# SYNOPSIS
+
+*desktop-shell-window-title-format* [*-c* _FILE_]
+
+# DESCRIPTION
+
+*desktop-shell-window-title-format* sets the title bar text of every window,
+by default to its title followed by its process ID in grey. It follows the
+compositor through its IPC socket, found in _$SWAYSOCK_, sends a command only
+when a window's text changes, and exits when the compositor does.
+
+The default format uses Pango markup, which sway only renders when its font
+is set with a *pango:* prefix. Title bars show only with *default_border
+normal*, or in tabbed and stacked layouts.
+
+# OPTIONS
+
+*-h, --help*
+	Show the help message and exit.
+
+*-c, --config* _FILE_
+	Read settings from _FILE_ instead of the usual places.
+
+*-s, --style* _FILE_
+	Accepted like by every component; unused, as the compositor draws the titles.
+
+# CONFIGURATION
+
+The installed _@sysconfdir@/sway/config.d/60-desktop-shell-window-title-format.conf_
+starts the program with sway. A second copy started by a configuration reload
+exits at once.
+
+# SETTINGS
+
+Read from _$XDG_CONFIG_HOME/desktop-shell-components/window-title-format.ini_,
+else _/etc/xdg/desktop-shell-components/window-title-format.ini_, which lists
+every setting with its default. All are optional; *swaymsg reload* applies
+changes.
+
+*[titles]*
+	*enabled* = _true_|_false_ (false restores the plain titles)++
+	*format* = text with sway's *%title* *%app_id* *%class* *%instance* *%shell*,
+	plus *{pid}* *{name}* *{workspace}*; *{title}* means *%title*
+
+The format may contain *"* or *'*, but not both, and must not end in a
+backslash; otherwise the default is used.
+
+# SEE ALSO
+
+*sway*(5), *sway-ipc*(7), *desktop-shell-workspace-window-bar*(1)

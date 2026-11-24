@@ -19,6 +19,7 @@ enum {
 };
 
 struct workspace_window_bar_settings {
+    bool  is_enabled;
     bool  is_at_top;
     int   height;       // 0 matches sway's top bar
     char *label_format; // see window-label-format.h

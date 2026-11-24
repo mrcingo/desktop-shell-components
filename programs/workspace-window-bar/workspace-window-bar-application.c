@@ -148,21 +148,34 @@ apply_settings(
     compositor_matched_appearance_refresh(bar->appearance, bar->settings->follows_sway_bar);
 }
 
-/* Panels hold a pointer to the settings, so they are rebuilt around the new ones. */
+/* One panel per monitor, following the current settings. */
+static void
+show_panels(
+    struct workspace_window_bar_application *bar
+)
+{
+    bar->panels = per_monitor_objects_create(gdk_display_get_default(), &panels_handler, bar);
+
+    apply_settings(bar);
+}
+
+/* Panels hold a pointer to the settings, so they are rebuilt around the new ones. Turning the bar off quits. */
 static void
 reload_settings(
     struct workspace_window_bar_application *bar
 )
 {
-    GdkDisplay *display = gdk_display_get_default();
-
     g_clear_pointer(&bar->panels, per_monitor_objects_destroy);
     workspace_window_bar_settings_destroy(bar->settings);
 
     bar->settings = workspace_window_bar_settings_load(bar->options->configuration_override_path);
-    bar->panels   = per_monitor_objects_create(display, &panels_handler, bar);
 
-    apply_settings(bar);
+    if (!bar->settings->is_enabled) {
+        g_application_quit(G_APPLICATION(bar->gtk_application));
+        return; // the compositor starts the bar again on the reload that turns it back on
+    }
+
+    show_panels(bar);
 }
 
 static void
@@ -226,10 +239,10 @@ handle_activate(
         return;
     }
 
+    bar->started_successfully = true;
+
     create_appearance(bar, gdk_display_get_default());
     reload_settings(bar);
-
-    bar->started_successfully = true;
 
     /* Panels come and go with monitors; keep running without any. */
     g_application_hold(gtk_application);
@@ -250,8 +263,22 @@ handle_shutdown(
     g_clear_pointer(&bar->settings, workspace_window_bar_settings_destroy);
 }
 
-bool
-workspace_window_bar_application_run(
+/* Checked before GTK starts, so a turned-off bar costs nothing on each reload. */
+static bool
+bar_is_enabled(
+    const struct workspace_window_bar_options *options
+)
+{
+    struct workspace_window_bar_settings *settings   = workspace_window_bar_settings_load(options->configuration_override_path);
+    bool                                  is_enabled = settings->is_enabled;
+
+    workspace_window_bar_settings_destroy(settings);
+
+    return is_enabled;
+}
+
+static bool
+run_gtk_application(
     const struct workspace_window_bar_options *options
 )
 {
@@ -266,4 +293,16 @@ workspace_window_bar_application_run(
     g_object_unref(bar.gtk_application);
 
     return bar.started_successfully;
+}
+
+bool
+workspace_window_bar_application_run(
+    const struct workspace_window_bar_options *options
+)
+{
+    if (!bar_is_enabled(options)) {
+        return true;
+    }
+
+    return run_gtk_application(options);
 }

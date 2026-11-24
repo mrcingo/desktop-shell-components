@@ -12,7 +12,7 @@ struct workspace_window_bar_options {
     const char *style_sheet_override_path;   // NULL for the shipped one
 };
 
-/* Runs until the compositor exits; returns false if it could not start. */
+/* Runs until the compositor exits or the bar is turned off; returns false if it could not start. */
 bool workspace_window_bar_application_run(const struct workspace_window_bar_options *options);
 
 #endif

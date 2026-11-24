@@ -49,6 +49,7 @@ every setting with its default. All are optional; *swaymsg reload* applies
 changes.
 
 *[bar]*
+	*enabled* = _true_|_false_ (false closes the bar)++
 	*position* = _bottom_|_top_++
 	*height* = _auto_|_10-200_ (auto matches sway's top bar)++
 	*label* = text with *{name}* *{pid}* *{title}* *{workspace}*++

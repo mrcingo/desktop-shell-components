@@ -16,6 +16,7 @@ static const struct {
 };
 
 static const struct program_configuration_key known_keys[] = {
+    {"bar",        "enabled"        },
     {"bar",        "position"       },
     {"bar",        "height"         },
     {"bar",        "label"          },
@@ -69,6 +70,7 @@ read_settings(
     struct program_configuration_file    *configuration
 )
 {
+    settings->is_enabled   = program_configuration_file_read_boolean(configuration, "bar", "enabled", true);
     settings->is_at_top    = program_configuration_file_read_choice(configuration, "bar", "position", position_choices, 0) == 1;
     settings->height       = read_height(configuration);
     settings->label_format = program_configuration_file_read_text(configuration, "bar", "label", "{name} {pid}");

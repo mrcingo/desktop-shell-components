@@ -14,6 +14,7 @@ Optional. In `~/.config/desktop-shell-components/workspace-window-bar.ini`:
 
 | Setting                       | Values                                      | Default        |
 |-------------------------------|---------------------------------------------|----------------|
+| `enabled`                     | `true`, `false`                             | `true`         |
 | `position`                    | `bottom`, `top`                             | `bottom`       |
 | `height`                      | `auto` (same as sway's bar), 10 to 200      | `auto`         |
 | `label`                       | text with `{name}` `{pid}` `{title}` `{workspace}` | `{name} {pid}` |
@@ -26,5 +27,4 @@ Apply with `swaymsg reload`.
 
 ## Turn it off
 
-Remove the package, or delete
-`/etc/sway/config.d/60-desktop-shell-workspace-window-bar.conf`.
+Set `enabled = false` under `[bar]` and run `swaymsg reload`.
