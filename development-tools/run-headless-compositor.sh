@@ -10,7 +10,8 @@ set -eu
 configuration_file=$1
 environment_file=$(mktemp)
 
-trap 'rm -f "$environment_file"' EXIT
+# The generated configuration stays until sway exits, so "swaymsg reload" works.
+trap 'rm -f "$environment_file" "$environment_file.config"' EXIT
 
 printf 'exec env > %s\n' "$environment_file" > "$environment_file.config"
 cat "$configuration_file" >> "$environment_file.config"
@@ -25,5 +26,4 @@ while ! grep -q '^SWAYSOCK=' "$environment_file" 2>/dev/null; do
 done
 
 grep -E '^(WAYLAND_DISPLAY|SWAYSOCK)=' "$environment_file"
-rm -f "$environment_file.config"
 wait "$compositor_process"

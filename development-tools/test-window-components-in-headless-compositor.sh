@@ -1,71 +1,18 @@
 #!/bin/sh
-# End-to-end test of the workspace window bar and the window switcher,
-# entirely inside a headless compositor: nothing appears on the desktop.
-#
-# Opens three terminals (one in a background tab), starts both programs,
-# presses Alt+Tab with a virtual keyboard and checks that the previously
-# focused window gains focus. Screenshots land in OUTPUT_DIRECTORY.
+# End-to-end test of the workspace window bar and the window switcher in a
+# headless compositor: opens three terminals (one in a background tab),
+# starts both programs, presses Alt+Tab with a virtual keyboard and checks
+# that the previously focused window gains focus. Also checks that a second
+# copy exits at once and reports idle resource use.
 #
 # Usage: test-window-components-in-headless-compositor.sh BUILD_DIRECTORY OUTPUT_DIRECTORY
 set -eu
 
-# Never talk to the desktop this runs from: every compositor command below
-# goes to the headless compositor's own socket, once it exists.
-unset SWAYSOCK WAYLAND_DISPLAY
-
 build_directory=$(realpath "$1")
 output_directory=$(realpath "$2")
 tools_directory=$(realpath "$(dirname "$0")")
-started_process_ids=""
-headless_socket=""
 
-required_programs="
-    programs/workspace-window-bar/desktop-shell-workspace-window-bar
-    programs/window-switcher/desktop-shell-window-switcher
-    development-tools/send-virtual-key-presses
-"
-
-require_built_programs() {
-    for program in $required_programs; do
-        if [ ! -x "$build_directory/$program" ]; then
-            echo "Missing $program; build it with: meson compile -C $build_directory $(basename "$program")" >&2
-            exit 1
-        fi
-    done
-}
-
-start_headless_compositor() {
-    "$tools_directory/run-headless-compositor.sh" \
-        "$tools_directory/headless-compositor-test-configuration" \
-        > "$output_directory/compositor-environment" 2> "$output_directory/compositor.log" &
-
-    started_process_ids="$started_process_ids $!"
-
-    while ! grep -q '^SWAYSOCK=' "$output_directory/compositor-environment" 2>/dev/null; do
-        sleep 0.1
-    done
-
-    export $(cat "$output_directory/compositor-environment")
-    headless_socket=$SWAYSOCK
-}
-
-stop_everything_started() {
-    if [ -n "$headless_socket" ]; then
-        swaymsg -s "$headless_socket" exit > /dev/null 2>&1 || true
-    fi
-
-    if [ -n "$started_process_ids" ]; then
-        kill $started_process_ids 2> /dev/null || true
-    fi
-}
-
-program_process_ids=""
-
-start_in_background() {
-    "$@" >> "$output_directory/programs.log" 2>&1 &
-    started_process_ids="$started_process_ids $!"
-    program_process_ids="$program_process_ids $!"
-}
+. "$tools_directory/headless-compositor-session.sh"
 
 # Resident memory, plus CPU ticks and wakeups (context switches) spent while nothing happens.
 idle_counters() {
@@ -82,19 +29,6 @@ report_idle_resource_usage() {
     done
 }
 
-open_test_windows() {
-    swaymsg -s "$headless_socket" 'exec foot -T first-terminal sh -c "echo first; exec sleep 600"' > /dev/null
-    sleep 0.5
-    swaymsg -s "$headless_socket" 'exec foot -T second-terminal sh -c "while :; do date +%T.%N; sleep 0.2; done"' > /dev/null
-    sleep 0.5
-    swaymsg -s "$headless_socket" 'layout tabbed; exec foot -T third-terminal top' > /dev/null
-    sleep 1
-}
-
-focused_window_title() {
-    swaymsg -s "$headless_socket" -t get_tree -r | "$tools_directory/print-focused-window-title.py"
-}
-
 # sway starts both programs on every configuration reload; a second copy must leave at once.
 check_second_copies_exit() {
     for program in desktop-shell-workspace-window-bar desktop-shell-window-switcher; do
@@ -103,8 +37,26 @@ check_second_copies_exit() {
     done
 }
 
+# The workspace's top edge in pixels: the space bars reserve above it.
+workspace_top_edge() {
+    swaymsg -s "$headless_socket" -t get_workspaces -r | python3 -c 'import json, sys; print(next(w for w in json.load(sys.stdin) if w["focused"])["rect"]["y"])'
+}
+
+# Settings apply on "swaymsg reload": moving the bar to the top must move the workspace down.
+check_configuration_reload() {
+    top_edge_before=$(workspace_top_edge)
+    mkdir -p "$XDG_CONFIG_HOME/desktop-shell-components"
+    printf '[bar]\nposition = top\n' > "$XDG_CONFIG_HOME/desktop-shell-components/workspace-window-bar.ini"
+    swaymsg -s "$headless_socket" reload > /dev/null
+    sleep 1.5
+    top_edge_after=$(workspace_top_edge)
+
+    echo "workspace top edge before and after moving the bar to the top: $top_edge_before, $top_edge_after"
+    test "$top_edge_after" -gt "$top_edge_before"
+}
+
 switch_with_alt_tab_and_screenshot() {
-    "$build_directory/development-tools/send-virtual-key-presses" alt-down tab wait wait wait wait alt-up &
+    hold_alt_tab_in_background
     sleep 1.4
     grim "$output_directory/window-switcher.png"
     wait $!
@@ -112,11 +64,14 @@ switch_with_alt_tab_and_screenshot() {
 }
 
 run_test() {
-    require_built_programs
+    require_built_programs \
+        programs/workspace-window-bar/desktop-shell-workspace-window-bar \
+        programs/window-switcher/desktop-shell-window-switcher \
+        development-tools/send-virtual-key-presses
     start_headless_compositor
     open_test_windows
-
-    export DESKTOP_SHELL_COMPONENTS_DATA_DIRECTORY="$tools_directory/../shared-data"
+    use_source_tree_style_sheets
+    export XDG_CONFIG_HOME="$output_directory/configuration-home"
     start_in_background "$build_directory/programs/workspace-window-bar/desktop-shell-workspace-window-bar"
     start_in_background "$build_directory/programs/window-switcher/desktop-shell-window-switcher"
     sleep 1.5
@@ -131,6 +86,7 @@ run_test() {
     echo "focused after Alt+Tab:  $title_after"
     report_idle_resource_usage
     test "$title_before" != "$title_after"
+    check_configuration_reload
 }
 
 trap stop_everything_started EXIT
