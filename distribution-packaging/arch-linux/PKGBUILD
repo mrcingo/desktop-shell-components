@@ -10,7 +10,7 @@ pkgname=(
     desktop-shell-window-switcher
     desktop-shell-window-title-format
 )
-pkgver=1.2.0
+pkgver=1.3.0
 pkgrel=1
 pkgdesc='Login screen, window bar, Alt+Tab switcher and title bar text for sway'
 arch=(x86_64)
@@ -115,7 +115,7 @@ package_desktop-shell-window-switcher() {
 
 package_desktop-shell-window-title-format() {
     pkgdesc='Process ID in sway window title bars'
-    depends=(glib2 glibc json-glib sway)
+    depends=(cairo fontconfig glib2 glibc json-glib pango sway)
     backup=(
         etc/sway/config.d/60-desktop-shell-window-title-format.conf
         etc/xdg/desktop-shell-components/window-title-format.ini
