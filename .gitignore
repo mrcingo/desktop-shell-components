@@ -1,3 +1,9 @@
 build/
 build-*/
 __pycache__/
+
+# makepkg work files
+distribution-packaging/arch-linux/src/
+distribution-packaging/arch-linux/pkg/
+distribution-packaging/arch-linux/desktop-shell-components/
+distribution-packaging/arch-linux/*.pkg.tar.*
