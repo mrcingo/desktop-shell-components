@@ -6,7 +6,7 @@ desktop-shell-login-greeter - graphical login screen for the greetd login daemon
 
 # SYNOPSIS
 
-*desktop-shell-login-greeter* [*-s* _FILE_]
+*desktop-shell-login-greeter* [*-c* _FILE_] [*-s* _FILE_]
 
 # DESCRIPTION
 
@@ -25,6 +25,9 @@ with a non-zero status otherwise.
 
 *-h, --help*
 	Show the help message and exit.
+
+*-c, --config* _FILE_
+	Read settings from _FILE_ instead of the usual places.
 
 *-s, --style* _FILE_
 	Load _FILE_ instead of the shipped login-greeter.css. The shared theme is
@@ -49,16 +52,44 @@ at it in _/etc/greetd/config.toml_:
 command = "sway --config /etc/greetd/login-greeter-compositor-configuration"
 ```
 
+The keyboard layout is the system's, set with *localectl set-x11-keymap*.
+To give the login screen the colors and font of your sway bar, run inside
+sway:
+
+```
+desktop-shell-print-sway-theme | sudo tee /etc/xdg/desktop-shell-components/shared-theme.css
+```
+
 There is deliberately no graphical fallback, as a terminal on the login
 screen could hand out a shell. If the greeter fails, log in on another
 virtual terminal, for example with Ctrl+Alt+F2.
 
+# SETTINGS
+
+Read from _/etc/xdg/desktop-shell-components/login-greeter.ini_, which lists
+every setting with its default. All are optional.
+
+*[greeter]*
+	*username* = a username to fill in++
+	*session* = the name of the session to select
+
+*[keyboard]*
+	*follow-system-layout* = _true_|_false_ (the layout set with
+	*localectl set-x11-keymap*)
+
 # STYLING
 
-Style sheets load in this order, each able to override the ones before:
-_@shared_data_directory@/shared-theme.css_, _@shared_data_directory@/login-greeter.css_
-(or the *--style* file), then _shared-theme.css_ and _login-greeter.css_ from
-_$XDG_CONFIG_HOME/desktop-shell-components_ if present.
+Without any style sheet the program takes its colors and font from the sway
+bar, or from the GTK theme when there is no bar or *follow-sway-bar* is
+false. Style sheets load in this order, each overriding the ones before:
+_@shared_data_directory@/shared-theme.css_ and _@shared_data_directory@/login-greeter.css_
+(or the *--style* file), then the same two names in
+_/etc/xdg/desktop-shell-components_, then in
+_$XDG_CONFIG_HOME/desktop-shell-components_.
+
+Colors are the CSS variables *--theme-background-color*, *--theme-text-color*,
+*--theme-secondary-text-color*, *--theme-accent-color*,
+*--theme-accent-text-color*, *--theme-border-color* and *--theme-urgent-color*.
 
 The windows have the _login-greeter-background_ class. The form is a box named
 _login-form-card_ holding labels with the _login-form-field-label_ class,
@@ -68,4 +99,4 @@ _login-form-submit-button_.
 
 # SEE ALSO
 
-*greetd*(1), *greetd*(5), *greetd-ipc*(7), *sway*(1)
+*desktop-shell-print-sway-theme*(1), *localectl*(1), *greetd*(1), *greetd*(5), *greetd-ipc*(7), *sway*(1)

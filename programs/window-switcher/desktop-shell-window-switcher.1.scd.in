@@ -6,7 +6,7 @@ desktop-shell-window-switcher - Alt+Tab window switcher with live previews
 
 # SYNOPSIS
 
-*desktop-shell-window-switcher* [*-s* _FILE_]
+*desktop-shell-window-switcher* [*-c* _FILE_] [*-s* _FILE_]
 
 # DESCRIPTION
 
@@ -27,6 +27,9 @@ empty preview.
 
 *-h, --help*
 	Show the help message and exit.
+
+*-c, --config* _FILE_
+	Read settings from _FILE_ instead of the usual places.
 
 *-s, --style* _FILE_
 	Load _FILE_ instead of the shipped window-switcher.css. The shared theme
@@ -50,13 +53,36 @@ the selected one. While the switcher is open, the arrow keys also move the
 selection, Return focuses it, a click focuses the clicked window, and Escape
 closes the switcher without switching.
 
+# SETTINGS
+
+Read from _$XDG_CONFIG_HOME/desktop-shell-components/window-switcher.ini_,
+else _/etc/xdg/desktop-shell-components/window-switcher.ini_, which lists
+every setting with its default. All are optional; *swaymsg reload* applies
+changes.
+
+*[switcher]*
+	*windows* = _workspace_|_all_++
+	*order* = _recent_|_layout_++
+	*previews* = _true_|_false_++
+	*preview-width* = _64-640_++
+	*label* = text with *{name}* *{pid}* *{title}* *{workspace}*
+
+*[appearance]*
+	*follow-sway-bar* = _true_|_false_
+
 # STYLING
 
-Style sheets load in this order, each able to override the ones before:
-_@shared_data_directory@/shared-theme.css_,
-_@shared_data_directory@/window-switcher.css_ (or the *--style* file), then
-_shared-theme.css_ and _window-switcher.css_ from
-_$XDG_CONFIG_HOME/desktop-shell-components_ if present.
+Without any style sheet the program takes its colors and font from the sway
+bar, or from the GTK theme when there is no bar or *follow-sway-bar* is
+false. Style sheets load in this order, each overriding the ones before:
+_@shared_data_directory@/shared-theme.css_ and _@shared_data_directory@/window-switcher.css_
+(or the *--style* file), then the same two names in
+_/etc/xdg/desktop-shell-components_, then in
+_$XDG_CONFIG_HOME/desktop-shell-components_.
+
+Colors are the CSS variables *--theme-background-color*, *--theme-text-color*,
+*--theme-secondary-text-color*, *--theme-accent-color*,
+*--theme-accent-text-color*, *--theme-border-color* and *--theme-urgent-color*.
 
 The window has the _window-switcher_ class and holds a box named
 _window-switcher-card_. Each window is a box with the _window-switcher-entry_

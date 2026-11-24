@@ -6,7 +6,7 @@ desktop-shell-workspace-window-bar - bar listing the windows of each workspace
 
 # SYNOPSIS
 
-*desktop-shell-workspace-window-bar* [*-s* _FILE_]
+*desktop-shell-workspace-window-bar* [*-c* _FILE_] [*-s* _FILE_]
 
 # DESCRIPTION
 
@@ -24,6 +24,9 @@ found in _$SWAYSOCK_, and exits when the compositor does.
 *-h, --help*
 	Show the help message and exit.
 
+*-c, --config* _FILE_
+	Read settings from _FILE_ instead of the usual places.
+
 *-s, --style* _FILE_
 	Load _FILE_ instead of the shipped workspace-window-bar.css. The shared
 	theme is still loaded first.
@@ -38,13 +41,35 @@ at once, so the line can safely be:
 exec_always desktop-shell-workspace-window-bar
 ```
 
+# SETTINGS
+
+Read from _$XDG_CONFIG_HOME/desktop-shell-components/workspace-window-bar.ini_,
+else _/etc/xdg/desktop-shell-components/workspace-window-bar.ini_, which lists
+every setting with its default. All are optional; *swaymsg reload* applies
+changes.
+
+*[bar]*
+	*position* = _bottom_|_top_++
+	*height* = _auto_|_10-200_ (auto matches sway's top bar)++
+	*label* = text with *{name}* *{pid}* *{title}* *{workspace}*++
+	*left-click*, *middle-click*, *right-click* = _focus_|_close_|_nothing_
+
+*[appearance]*
+	*follow-sway-bar* = _true_|_false_
+
 # STYLING
 
-Style sheets load in this order, each able to override the ones before:
-_@shared_data_directory@/shared-theme.css_,
-_@shared_data_directory@/workspace-window-bar.css_ (or the *--style* file),
-then _shared-theme.css_ and _workspace-window-bar.css_ from
-_$XDG_CONFIG_HOME/desktop-shell-components_ if present.
+Without any style sheet the program takes its colors and font from the sway
+bar, or from the GTK theme when there is no bar or *follow-sway-bar* is
+false. Style sheets load in this order, each overriding the ones before:
+_@shared_data_directory@/shared-theme.css_ and _@shared_data_directory@/workspace-window-bar.css_
+(or the *--style* file), then the same two names in
+_/etc/xdg/desktop-shell-components_, then in
+_$XDG_CONFIG_HOME/desktop-shell-components_.
+
+Colors are the CSS variables *--theme-background-color*, *--theme-text-color*,
+*--theme-secondary-text-color*, *--theme-accent-color*,
+*--theme-accent-text-color*, *--theme-border-color* and *--theme-urgent-color*.
 
 The window has the _workspace-window-bar_ class. Each window is a button with
 the _workspace-window-bar-entry_ class, plus _focused-window_ for the focused

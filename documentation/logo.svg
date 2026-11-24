@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!--
+    desktop-shell-components: a desktop in one glyph. A top bar with the
+    focused workspace, three windows with the middle one selected as the
+    Alt+Tab switcher shows them, and the window bar with the focused window
+    highlighted. Flat, in sway's default bar colors.
+  -->
+  <rect width="128" height="128" fill="#222222"/>
+
+  <rect y="0" width="128" height="12" fill="#1a1a1a"/>
+  <rect x="0" y="0" width="12" height="12" fill="#005577"/>
+
+  <rect x="10" y="38" width="30" height="42" fill="#2b2b2b" stroke="#444444" stroke-width="2"/>
+  <rect x="49" y="34" width="30" height="50" fill="#2b2b2b" stroke="#005577" stroke-width="4"/>
+  <rect x="88" y="38" width="30" height="42" fill="#2b2b2b" stroke="#444444" stroke-width="2"/>
+
+  <rect x="55" y="42" width="18" height="3" fill="#eeeeee"/>
+  <rect x="55" y="49" width="12" height="3" fill="#bbbbbb"/>
+  <rect x="55" y="56" width="15" height="3" fill="#bbbbbb"/>
+
+  <rect y="116" width="128" height="12" fill="#1a1a1a"/>
+  <rect x="2" y="118" width="38" height="8" fill="#444444"/>
+  <rect x="45" y="118" width="38" height="8" fill="#005577"/>
+  <rect x="88" y="118" width="38" height="8" fill="#444444"/>
+</svg>
