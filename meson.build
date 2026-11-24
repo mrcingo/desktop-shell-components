@@ -44,4 +44,5 @@ shared_data_directory = installation_paths.get('shared_data_directory')
 scdoc_dependency = dependency('scdoc', native: true,
     required: get_option('manual-pages'))
 
+subdir('wayland-protocol-bindings')
 subdir('development-tools')
