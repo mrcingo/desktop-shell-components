@@ -9,7 +9,7 @@ pkgname=(
     desktop-shell-workspace-window-bar
     desktop-shell-window-switcher
 )
-pkgver=1.0.0
+pkgver=1.1.0
 pkgrel=1
 pkgdesc='Login screen, window bar and Alt+Tab switcher for sway'
 arch=(x86_64)
@@ -58,7 +58,6 @@ _take_program() {
 
 package_desktop-shell-components-common() {
     pkgdesc='Shared theme for desktop-shell-components'
-    depends=(otf-monaspace)
 
     _install_into_staging
     _take_files usr/share/desktop-shell-components/shared-theme.css
@@ -68,32 +67,45 @@ package_desktop-shell-components-common() {
 package_desktop-shell-login-greeter() {
     pkgdesc='Login screen for greetd'
     depends=(desktop-shell-components-common glib2 glibc greetd gtk4 gtk4-layer-shell json-glib sway swaybg)
-    backup=(etc/greetd/login-greeter-compositor-configuration)
+    backup=(
+        etc/greetd/login-greeter-compositor-configuration
+        etc/xdg/desktop-shell-components/login-greeter.ini
+    )
     install=desktop-shell-login-greeter.install
 
     _install_into_staging
     _take_program desktop-shell-login-greeter
+    _take_program desktop-shell-print-sway-theme
     _take_files usr/share/desktop-shell-components/login-greeter.css etc/greetd/login-greeter-compositor-configuration
+    _take_files etc/xdg/desktop-shell-components/login-greeter.ini
 }
 
 package_desktop-shell-workspace-window-bar() {
     pkgdesc='Window bar for sway'
     depends=(desktop-shell-components-common glib2 glibc gtk4 gtk4-layer-shell json-glib sway)
-    backup=(etc/sway/config.d/60-desktop-shell-workspace-window-bar.conf)
+    backup=(
+        etc/sway/config.d/60-desktop-shell-workspace-window-bar.conf
+        etc/xdg/desktop-shell-components/workspace-window-bar.ini
+    )
     install=desktop-shell-workspace-window-bar.install
 
     _install_into_staging
     _take_program desktop-shell-workspace-window-bar
     _take_files usr/share/desktop-shell-components/workspace-window-bar.css etc/sway/config.d/60-desktop-shell-workspace-window-bar.conf
+    _take_files etc/xdg/desktop-shell-components/workspace-window-bar.ini
 }
 
 package_desktop-shell-window-switcher() {
     pkgdesc='Alt+Tab window switcher for sway'
     depends=(desktop-shell-components-common glib2 glibc gtk4 gtk4-layer-shell json-glib 'sway>=1.12' wayland)
-    backup=(etc/sway/config.d/60-desktop-shell-window-switcher.conf)
+    backup=(
+        etc/sway/config.d/60-desktop-shell-window-switcher.conf
+        etc/xdg/desktop-shell-components/window-switcher.ini
+    )
     install=desktop-shell-window-switcher.install
 
     _install_into_staging
     _take_program desktop-shell-window-switcher
     _take_files usr/share/desktop-shell-components/window-switcher.css etc/sway/config.d/60-desktop-shell-window-switcher.conf
+    _take_files etc/xdg/desktop-shell-components/window-switcher.ini
 }

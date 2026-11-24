@@ -1,7 +1,7 @@
 project(
     'desktop-shell-components',
     'c',
-    version: '1.0.0',
+    version: '1.1.0',
     license: '0BSD',
     license_files: 'LICENSE',
     meson_version: '>=1.1.0',
