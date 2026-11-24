@@ -1,0 +1,55 @@
+desktop-shell-workspace-window-bar(1)
+
+# NAME
+
+desktop-shell-workspace-window-bar - bar listing the windows of each workspace
+
+# SYNOPSIS
+
+*desktop-shell-workspace-window-bar* [*-s* _FILE_]
+
+# DESCRIPTION
+
+*desktop-shell-workspace-window-bar* puts a bar along the bottom of every
+output. It lists the windows of the workspace shown on that output as their
+application name (the Wayland app ID or X11 class) and process ID. The
+focused window is highlighted, and clicking a window focuses it.
+
+The bar is exactly as tall as the space the compositor's top bar reserves,
+so the two bars match. It follows the compositor through its IPC socket,
+found in _$SWAYSOCK_, and exits when the compositor does.
+
+# OPTIONS
+
+*-h, --help*
+	Show the help message and exit.
+
+*-s, --style* _FILE_
+	Load _FILE_ instead of the shipped workspace-window-bar.css. The shared
+	theme is still loaded first.
+
+# CONFIGURATION
+
+The installed _@sysconfdir@/sway/config.d/60-desktop-shell-workspace-window-bar.conf_
+starts the bar with sway. A second copy started by a configuration reload exits
+at once, so the line can safely be:
+
+```
+exec_always desktop-shell-workspace-window-bar
+```
+
+# STYLING
+
+Style sheets load in this order, each able to override the ones before:
+_@shared_data_directory@/shared-theme.css_,
+_@shared_data_directory@/workspace-window-bar.css_ (or the *--style* file),
+then _shared-theme.css_ and _workspace-window-bar.css_ from
+_$XDG_CONFIG_HOME/desktop-shell-components_ if present.
+
+The window has the _workspace-window-bar_ class. Each window is a button with
+the _workspace-window-bar-entry_ class, plus _focused-window_ for the focused
+one.
+
+# SEE ALSO
+
+*sway*(5), *sway-bar*(5), *sway-ipc*(7), *desktop-shell-window-switcher*(1)

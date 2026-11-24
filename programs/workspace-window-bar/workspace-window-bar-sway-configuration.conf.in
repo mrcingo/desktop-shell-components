@@ -1,0 +1,6 @@
+# Starts the workspace window bar with sway. Installed by
+# desktop-shell-workspace-window-bar into /etc/sway/config.d, which sway's
+# default configuration includes. Starting it again on reload is harmless:
+# a second copy exits at once.
+
+exec_always @bindir@/desktop-shell-workspace-window-bar
