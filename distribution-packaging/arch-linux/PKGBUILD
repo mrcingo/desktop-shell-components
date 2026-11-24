@@ -25,6 +25,8 @@ source=("$pkgbase::git+https://github.com/mrcingo/desktop-shell-components.git#t
 sha256sums=('SKIP')
 
 build() {
+    # A staging tree left by an earlier build would hide this build's files.
+    rm -rf "$srcdir/staging"
     arch-meson "$pkgbase" build -Dmanual-pages=enabled
     meson compile -C build
 }
