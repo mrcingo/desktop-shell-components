@@ -1,9 +1,6 @@
 # Libraries
 
-The programs are built from these small static libraries. Each one does one
-job and lives in its own folder with its header, source, build file and
-tests. A library only uses libraries listed above it here and in
-`meson.build`.
+Each library does one job. A library only uses the ones above it.
 
 | Library                           | Job                                                              |
 |-----------------------------------|------------------------------------------------------------------|
@@ -34,7 +31,5 @@ tests. A library only uses libraries listed above it here and in
 
 ## Adding a library
 
-1. Create `libraries/NAME/` with `NAME.h`, `NAME.c`, `meson.build` and
-   `tests/test-NAME.c`, following an existing library.
-2. Add `subdir('NAME')` to `libraries/meson.build` after the libraries it uses.
-3. Add it to the table above.
+Copy the layout of an existing library, add it to `meson.build` and to this
+table.

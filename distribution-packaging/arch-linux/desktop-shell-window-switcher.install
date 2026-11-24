@@ -1,7 +1,3 @@
 post_install() {
-    echo ':: Alt+Tab is bound in /etc/sway/config.d. To start now, run: swaymsg reload'
-}
-
-post_upgrade() {
-    echo ':: The running switcher keeps the old version until sway restarts.'
+    echo ':: Run: swaymsg reload'
 }

@@ -1,7 +1,4 @@
 post_install() {
-    echo ':: To use the login screen, set in /etc/greetd/config.toml:'
-    echo '::     [default_session]'
-    echo '::     command = "sway --config /etc/greetd/login-greeter-compositor-configuration"'
-    echo '::     user = "greeter"'
-    echo ':: Set the keyboard layout in /etc/greetd/login-greeter-compositor-configuration.'
+    echo ':: To use it, set in /etc/greetd/config.toml:'
+    echo '::   command = "sway --config /etc/greetd/login-greeter-compositor-configuration"'
 }

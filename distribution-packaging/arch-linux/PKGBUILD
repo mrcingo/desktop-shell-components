@@ -11,7 +11,7 @@ pkgname=(
 )
 pkgver=1.0.0
 pkgrel=1
-pkgdesc='Small desktop components for wlroots compositors, sharing one theme'
+pkgdesc='Login screen, window bar and Alt+Tab switcher for sway'
 arch=(x86_64)
 license=(0BSD)
 makedepends=(
@@ -57,7 +57,7 @@ _take_program() {
 }
 
 package_desktop-shell-components-common() {
-    pkgdesc='Shared theme of the desktop shell components'
+    pkgdesc='Shared theme for desktop-shell-components'
     depends=(otf-monaspace)
 
     _install_into_staging
@@ -66,7 +66,7 @@ package_desktop-shell-components-common() {
 }
 
 package_desktop-shell-login-greeter() {
-    pkgdesc='Graphical login screen for the greetd login daemon'
+    pkgdesc='Login screen for greetd'
     depends=(desktop-shell-components-common glib2 glibc greetd gtk4 gtk4-layer-shell json-glib sway swaybg)
     backup=(etc/greetd/login-greeter-compositor-configuration)
     install=desktop-shell-login-greeter.install
@@ -77,7 +77,7 @@ package_desktop-shell-login-greeter() {
 }
 
 package_desktop-shell-workspace-window-bar() {
-    pkgdesc='Bar listing the windows of each workspace, for sway'
+    pkgdesc='Window bar for sway'
     depends=(desktop-shell-components-common glib2 glibc gtk4 gtk4-layer-shell json-glib sway)
     backup=(etc/sway/config.d/60-desktop-shell-workspace-window-bar.conf)
     install=desktop-shell-workspace-window-bar.install
@@ -88,7 +88,7 @@ package_desktop-shell-workspace-window-bar() {
 }
 
 package_desktop-shell-window-switcher() {
-    pkgdesc='Alt+Tab window switcher with live previews, for sway'
+    pkgdesc='Alt+Tab window switcher for sway'
     depends=(desktop-shell-components-common glib2 glibc gtk4 gtk4-layer-shell json-glib 'sway>=1.12' wayland)
     backup=(etc/sway/config.d/60-desktop-shell-window-switcher.conf)
     install=desktop-shell-window-switcher.install
