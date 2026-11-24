@@ -45,4 +45,5 @@ scdoc_dependency = dependency('scdoc', native: true,
     required: get_option('manual-pages'))
 
 subdir('wayland-protocol-bindings')
+subdir('libraries')
 subdir('development-tools')
