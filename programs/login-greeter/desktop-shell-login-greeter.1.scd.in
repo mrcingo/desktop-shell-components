@@ -1,0 +1,71 @@
+desktop-shell-login-greeter(1)
+
+# NAME
+
+desktop-shell-login-greeter - graphical login screen for the greetd login daemon
+
+# SYNOPSIS
+
+*desktop-shell-login-greeter* [*-s* _FILE_]
+
+# DESCRIPTION
+
+*desktop-shell-login-greeter* asks for a username and password, lets the user
+pick a session, and shows every further question or message from PAM.
+Escape abandons a question or a running login attempt.
+
+It draws one wlr-layer-shell surface on every output. The login form is shown
+on the output the pointer last entered, and only that surface takes keyboard
+input.
+
+It exits with status 0 once greetd has accepted the session to start, and
+with a non-zero status otherwise.
+
+# OPTIONS
+
+*-h, --help*
+	Show the help message and exit.
+
+*-s, --style* _FILE_
+	Load _FILE_ instead of the shipped login-greeter.css. The shared theme is
+	still loaded first.
+
+# SESSIONS
+
+Sessions are read from the desktop entries in _@session_entries_directory@_.
+Entries with _Hidden_ or _NoDisplay_ set, or whose _TryExec_ program is
+missing, are skipped. A session starts with _XDG_SESSION_TYPE=wayland_ and
+with _XDG_CURRENT_DESKTOP_ set from the entry's _DesktopNames_.
+
+# SETUP
+
+The greeter needs a compositor that supports wlr-layer-shell, such as
+*sway*(1), and the compositor must exit once the greeter does. The installed
+_/etc/greetd/login-greeter-compositor-configuration_ does this. Point greetd
+at it in _/etc/greetd/config.toml_:
+
+```
+[default_session]
+command = "sway --config /etc/greetd/login-greeter-compositor-configuration"
+```
+
+There is deliberately no graphical fallback, as a terminal on the login
+screen could hand out a shell. If the greeter fails, log in on another
+virtual terminal, for example with Ctrl+Alt+F2.
+
+# STYLING
+
+Style sheets load in this order, each able to override the ones before:
+_@shared_data_directory@/shared-theme.css_, _@shared_data_directory@/login-greeter.css_
+(or the *--style* file), then _shared-theme.css_ and _login-greeter.css_ from
+_$XDG_CONFIG_HOME/desktop-shell-components_ if present.
+
+The windows have the _login-greeter-background_ class. The form is a box named
+_login-form-card_ holding labels with the _login-form-field-label_ class,
+fields with the _login-form-field_ class, a label named _login-form-message_
+(with the _error_ class for errors) and a button named
+_login-form-submit-button_.
+
+# SEE ALSO
+
+*greetd*(1), *greetd*(5), *greetd-ipc*(7), *sway*(1)

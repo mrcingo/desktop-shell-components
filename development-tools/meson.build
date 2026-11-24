@@ -15,6 +15,7 @@ test(
     args: [
         files('check-function-size.py'),
         meson.project_source_root() / 'libraries',
+        meson.project_source_root() / 'programs',
         meson.project_source_root() / 'development-tools',
     ],
 )

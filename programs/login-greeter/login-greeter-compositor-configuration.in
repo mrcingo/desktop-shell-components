@@ -1,0 +1,20 @@
+# The sway instance that shows the login screen, see
+# desktop-shell-login-greeter(1). Edit this file for the login screen's
+# keyboard layout, outputs and wallpaper; package upgrades keep your edits.
+#
+# The user-session snippets in /etc/sway/config.d are deliberately not
+# included: nothing meant for a logged-in user belongs on the login screen.
+
+output * bg /usr/share/backgrounds/sway/Sway_Wallpaper_Blue_1920x1080.png fill
+
+# Keyboard layout and touchpad on the login screen, for example:
+#   input type:keyboard xkb_layout es
+#   input type:touchpad tap enabled
+
+xwayland disable
+
+# The greeter's user services, such as xdg-desktop-portal, need the display
+# before the greeter starts. sway must exit with the greeter so greetd can
+# start the session. If the greeter fails, log in on another virtual
+# terminal with Ctrl+Alt+F2.
+exec "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=sway; @bindir@/desktop-shell-login-greeter; swaymsg exit"
