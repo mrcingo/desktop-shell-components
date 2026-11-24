@@ -496,3 +496,22 @@ login_form_widget_return_to_credentials(
     login_form_widget_set_busy(form, false);
     login_form_widget_focus_next_field(form);
 }
+
+void
+login_form_widget_fill_username(
+    struct login_form_widget *form,
+    const char               *username
+)
+{
+    gtk_editable_set_text(GTK_EDITABLE(form->username_entry), username);
+    login_form_widget_focus_next_field(form);
+}
+
+void
+login_form_widget_select_session(
+    struct login_form_widget *form,
+    guint                     session_index
+)
+{
+    gtk_drop_down_set_selected(GTK_DROP_DOWN(form->session_selector), session_index);
+}

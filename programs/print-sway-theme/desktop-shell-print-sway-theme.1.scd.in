@@ -1,0 +1,26 @@
+desktop-shell-print-sway-theme(1)
+
+# NAME
+
+desktop-shell-print-sway-theme - print the sway bar's colors and font as a theme
+
+# SYNOPSIS
+
+*desktop-shell-print-sway-theme*
+
+# DESCRIPTION
+
+Prints the colors and font of the running sway bar as a style sheet for the
+desktop shell components. The bar and the switcher read them from sway by
+themselves; the login screen starts before sway and cannot, so save the theme
+where it looks:
+
+```
+desktop-shell-print-sway-theme | sudo tee /etc/xdg/desktop-shell-components/shared-theme.css
+```
+
+Exits with a non-zero status when sway has no bar or cannot be reached.
+
+# SEE ALSO
+
+*desktop-shell-login-greeter*(1), *sway-bar*(5)

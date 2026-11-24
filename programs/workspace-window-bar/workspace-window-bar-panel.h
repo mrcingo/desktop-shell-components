@@ -6,22 +6,25 @@
 #include <gtk/gtk.h>
 
 #include "compositor-window-tree.h"
+#include "workspace-window-bar-settings.h"
 
 /*
- * The bar along the bottom edge of one monitor, listing the windows of the
- * workspace shown there as "name pid". The focused window is highlighted
- * and clicking a window focuses it.
+ * The bar along one edge of one monitor, listing the windows of the
+ * workspace shown there. The focused window is highlighted.
  */
 
 struct workspace_window_bar_panel_handler {
-    void (*handle_window_clicked)(void *user_data, int64_t container_id);
+    /* mouse_button is 0 for left, 1 for middle and 2 for right. */
+    void (*handle_window_clicked)(void *user_data, int64_t container_id, int mouse_button);
 };
 
 struct workspace_window_bar_panel;
 
+/* settings must outlive the panel. */
 struct workspace_window_bar_panel *workspace_window_bar_panel_create(
     GtkApplication                                  *application,
     GdkMonitor                                      *monitor,
+    const struct workspace_window_bar_settings      *settings,
     const struct workspace_window_bar_panel_handler *handler,
     void                                            *user_data
 );

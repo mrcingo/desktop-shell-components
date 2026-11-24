@@ -1,36 +1,22 @@
 /*
- * The theme every desktop component shares. Colours follow sway's default
- * bar, so the components match the compositor's own top bar and borders.
- * Components refer to these variables instead of repeating colour values;
- * override them in ~/.config/desktop-shell-components/shared-theme.css.
+ * Colors shared by every program. They follow your GTK theme; when sway has
+ * a bar, its colors and font replace them. Override any variable in
+ * ~/.config/desktop-shell-components/shared-theme.css.
  */
 
 :root {
-    --theme-font-family:              "Monaspace Neon";
-
-    --theme-background-color:         #222222;
-    --theme-translucent-surface-color: rgba(34, 34, 34, 0.92);
-    --theme-raised-surface-color:     #2b2b2b;
-    --theme-sunken-surface-color:     #1a1a1a;
-    --theme-border-color:             #444444;
-
-    --theme-accent-color:             #005577;
-    --theme-accent-hover-color:       #006688;
-    --theme-accent-pressed-color:     #004466;
-
-    --theme-text-color:               #eeeeee;
-    --theme-secondary-text-color:     #bbbbbb;
-    --theme-disabled-text-color:      #888888;
-    --theme-error-text-color:         #ff8a80;
-
-    --theme-control-border-width:     2px;
-    --theme-panel-border-width:       1px;
+    --theme-background-color:     @theme_bg_color;
+    --theme-text-color:           @theme_fg_color;
+    --theme-secondary-text-color: @theme_unfocused_fg_color;
+    --theme-accent-color:         @theme_selected_bg_color;
+    --theme-accent-text-color:    @theme_selected_fg_color;
+    --theme-border-color:         @borders;
+    --theme-urgent-color:         @error_color;
 }
 
-/* GTK's default theme draws gradients, shadows and rounded corners. */
-* {
-    font-family:      var(--theme-font-family);
-    color:            var(--theme-text-color);
+/* Flat surfaces, like sway's own bar and borders. */
+.desktop-shell-component,
+.desktop-shell-component * {
     background-image: none;
     box-shadow:       none;
     text-shadow:      none;
@@ -38,6 +24,19 @@
     border-radius:    0;
 }
 
-*:disabled {
-    color: var(--theme-disabled-text-color);
+/*
+ * Text takes the theme's color, also where the GTK theme would choose
+ * another; every widget inherits it, so a widget that sets its own color,
+ * such as a highlighted button, passes it on to its label.
+ */
+.desktop-shell-component {
+    color: var(--theme-text-color);
+}
+
+.desktop-shell-component * {
+    color: inherit;
+}
+
+.desktop-shell-component *:disabled {
+    color: var(--theme-secondary-text-color);
 }

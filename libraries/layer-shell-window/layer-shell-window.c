@@ -72,6 +72,7 @@ layer_shell_window_create(
     GtkWindow *window = GTK_WINDOW(gtk_window_new());
 
     gtk_window_set_application(window, application);
+    gtk_widget_add_css_class(GTK_WIDGET(window), "desktop-shell-component");
     configure_layer_surface(window, options);
     anchor_edges(window, options->anchored_edges);
     reserve_space(window, options->space_reservation);

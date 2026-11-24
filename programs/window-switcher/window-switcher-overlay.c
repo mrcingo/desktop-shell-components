@@ -1,12 +1,12 @@
-#include "window-switcher-overlay.h"
 #include <math.h>
 
 #include "alt-key-release-watcher.h"
 #include "layer-shell-window.h"
+#include "window-switcher-overlay.h"
 
 enum {
-    PREVIEW_MAXIMUM_WIDTH = 240,
-    PREVIEW_MINIMUM_WIDTH = 96,
+    DEFAULT_MAXIMUM_PREVIEW_WIDTH = 240,
+    PREVIEW_MINIMUM_WIDTH         = 64,
 
     /* Space around each preview: entry border and padding, and the gap between entries. */
     ENTRY_SURROUNDING_WIDTH = 2 * 2 + 2 * 4 + 12,
@@ -39,6 +39,9 @@ struct window_switcher_overlay {
 
     uint32_t preview_pixel_width;
     uint32_t preview_pixel_height;
+
+    int  maximum_preview_width;
+    bool shows_previews;
 };
 
 static struct shown_entry *
@@ -328,6 +331,7 @@ add_entry(
 {
     struct shown_entry *shown = create_shown_entry(entry, preview_width, preview_height);
 
+    gtk_widget_set_visible(shown->preview_picture, overlay->shows_previews);
     make_entry_clickable(overlay, shown->entry_widget, overlay->shown_entries->len);
     gtk_box_append(GTK_BOX(overlay->entry_row), shown->entry_widget);
     g_ptr_array_add(overlay->shown_entries, shown);
@@ -336,8 +340,9 @@ add_entry(
 /* Previews shrink so that every window fits on 90% of the monitor's width. */
 static int
 preview_width_for(
-    GdkMonitor *monitor,
-    guint       entry_count
+    struct window_switcher_overlay *overlay,
+    GdkMonitor                     *monitor,
+    guint                           entry_count
 )
 {
     GdkRectangle monitor_area;
@@ -347,7 +352,7 @@ preview_width_for(
     int available_width = monitor_area.width * 9 / 10 - CARD_SURROUNDING_WIDTH;
     int preview_width   = available_width / (int)entry_count - ENTRY_SURROUNDING_WIDTH;
 
-    return CLAMP(preview_width, PREVIEW_MINIMUM_WIDTH, PREVIEW_MAXIMUM_WIDTH);
+    return CLAMP(preview_width, PREVIEW_MINIMUM_WIDTH, MAX(overlay->maximum_preview_width, PREVIEW_MINIMUM_WIDTH));
 }
 
 /* Previews keep the monitor's aspect ratio, which most windows roughly share. */
@@ -386,7 +391,7 @@ add_entries_sized_for_monitor(
     GPtrArray                      *entries
 )
 {
-    int preview_width  = preview_width_for(monitor, entries->len);
+    int preview_width  = preview_width_for(overlay, monitor, entries->len);
     int preview_height = preview_height_for(monitor, preview_width);
 
     remember_preview_pixel_size(overlay, monitor, preview_width, preview_height);
@@ -517,12 +522,27 @@ allocate_overlay(
 {
     struct window_switcher_overlay *overlay = g_new0(struct window_switcher_overlay, 1);
 
-    overlay->handler       = handler;
-    overlay->user_data     = user_data;
-    overlay->window        = create_overlay_window(application);
-    overlay->shown_entries = g_ptr_array_new_with_free_func(g_free);
+    *overlay = (struct window_switcher_overlay){
+        .handler               = handler,
+        .user_data             = user_data,
+        .window                = create_overlay_window(application),
+        .shown_entries         = g_ptr_array_new_with_free_func(g_free),
+        .shows_previews        = true,
+        .maximum_preview_width = DEFAULT_MAXIMUM_PREVIEW_WIDTH,
+    };
 
     return overlay;
+}
+
+void
+window_switcher_overlay_set_preview_options(
+    struct window_switcher_overlay *overlay,
+    bool                            shows_previews,
+    int                             maximum_preview_width
+)
+{
+    overlay->shows_previews        = shows_previews;
+    overlay->maximum_preview_width = maximum_preview_width;
 }
 
 struct window_switcher_overlay *

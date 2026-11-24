@@ -55,6 +55,13 @@ void window_switcher_overlay_get_preview_pixel_size(
     uint32_t                       *pixel_height
 );
 
+/* Whether entries show a preview, and how wide one may grow. */
+void window_switcher_overlay_set_preview_options(
+    struct window_switcher_overlay *overlay,
+    bool                            shows_previews,
+    int                             maximum_preview_width
+);
+
 void window_switcher_overlay_set_preview(struct window_switcher_overlay *overlay, int64_t container_id, GdkTexture *preview);
 
 #endif

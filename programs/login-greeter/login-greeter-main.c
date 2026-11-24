@@ -23,10 +23,11 @@ run_greeter_with_sessions(
     }
 
     const struct login_greeter_options options = {
-        .login_daemon_socket_path  = login_daemon_socket_path,
-        .data_directory            = shared_style_sheets_resolve_data_directory(INSTALLED_DATA_DIRECTORY),
-        .style_sheet_override_path = command_line->style_sheet_override_path,
-        .session_entries           = session_entries,
+        .login_daemon_socket_path    = login_daemon_socket_path,
+        .data_directory              = shared_style_sheets_resolve_data_directory(INSTALLED_DATA_DIRECTORY),
+        .configuration_override_path = command_line->configuration_override_path,
+        .style_sheet_override_path   = command_line->style_sheet_override_path,
+        .session_entries             = session_entries,
     };
 
     return login_greeter_application_run(&options);

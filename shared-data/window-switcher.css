@@ -1,22 +1,18 @@
-/*
- * The Alt+Tab overlay: the same card as the login screen, holding one
- * preview per window, with the selected window in the accent colour.
- */
+/* The Alt+Tab overlay: one preview per window, the selected one in the accent color. */
 
 window.window-switcher {
     background-color: transparent;
-    font-size:        11pt;
 }
 
 #window-switcher-card {
     padding:          24px;
-    border:           var(--theme-control-border-width) solid var(--theme-border-color);
-    background-color: var(--theme-translucent-surface-color);
+    border:           2px solid var(--theme-border-color);
+    background-color: alpha(var(--theme-background-color), 0.92);
 }
 
 .window-switcher-entry {
     padding:          4px;
-    border:           var(--theme-control-border-width) solid var(--theme-border-color);
+    border:           2px solid var(--theme-border-color);
     background-color: var(--theme-background-color);
 }
 
@@ -26,7 +22,7 @@ window.window-switcher {
 }
 
 .window-switcher-preview {
-    background-color: var(--theme-sunken-surface-color);
+    background-color: shade(var(--theme-background-color), 0.8);
 }
 
 .window-switcher-entry-name {
@@ -35,5 +31,5 @@ window.window-switcher {
 }
 
 .window-switcher-entry.selected-window .window-switcher-entry-name {
-    color: var(--theme-text-color);
+    color: var(--theme-accent-text-color);
 }

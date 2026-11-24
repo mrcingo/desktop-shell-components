@@ -5,6 +5,8 @@
 #include "login-daemon-conversation.h"
 #include "login-form-widget.h"
 #include "login-greeter-application.h"
+#include "login-greeter-keyboard-layout.h"
+#include "login-greeter-settings.h"
 #include "per-monitor-objects.h"
 #include "shared-style-sheets.h"
 
@@ -14,6 +16,9 @@ struct login_greeter_application {
     bool                                session_was_started;
 
     struct login_daemon_conversation *conversation;
+    struct login_greeter_settings    *settings;
+    struct shared_style_sheets       *style_sheets;
+    struct compositor_ipc_client     *keyboard_layout_client; // NULL when no layout was applied
 
     struct login_form_widget   *form;             // created once GTK runs
     struct per_monitor_objects *monitor_windows;  // GtkWindow per monitor
@@ -376,7 +381,92 @@ load_greeter_style_sheets(
     const char *data_directory            = greeter->options->data_directory;
     const char *style_sheet_override_path = greeter->options->style_sheet_override_path;
 
-    shared_style_sheets_load_for_display(display, data_directory, "login-greeter", style_sheet_override_path);
+    greeter->style_sheets = shared_style_sheets_create(display, data_directory, "login-greeter", style_sheet_override_path);
+}
+
+static bool
+session_has_name(
+    const struct desktop_session_entry *entry,
+    const char                         *session_name
+)
+{
+    return g_ascii_strcasecmp(entry->display_name, session_name) == 0;
+}
+
+/* Session names are matched without regard to case, as users type them. */
+static bool
+find_session_by_name(
+    GPtrArray  *session_entries,
+    const char *session_name,
+    guint      *session_index
+)
+{
+    for (guint i = 0; i < session_entries->len; i++) {
+        if (session_has_name(g_ptr_array_index(session_entries, i), session_name)) {
+            *session_index = i;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/* False, with a warning for a name that matches no session, when the first session stays selected. */
+static bool
+find_default_session(
+    struct login_greeter_application *greeter,
+    guint                            *session_index
+)
+{
+    const char *session_name = greeter->settings->default_session_name;
+
+    if (session_name == NULL) {
+        return false;
+    }
+
+    if (find_session_by_name(greeter->options->session_entries, session_name, session_index)) {
+        return true;
+    }
+
+    g_warning("No session named \"%s\"; the first one is selected", session_name);
+
+    return false;
+}
+
+static void
+select_default_session(
+    struct login_greeter_application *greeter
+)
+{
+    guint session_index = 0;
+
+    if (find_default_session(greeter, &session_index)) {
+        login_form_widget_select_session(greeter->form, session_index);
+    }
+}
+
+static void
+apply_form_settings(
+    struct login_greeter_application *greeter
+)
+{
+    select_default_session(greeter);
+
+    if (greeter->settings->prefilled_username != NULL) {
+        login_form_widget_fill_username(greeter->form, greeter->settings->prefilled_username);
+    }
+}
+
+static void
+apply_keyboard_settings(
+    struct login_greeter_application *greeter
+)
+{
+    if (!greeter->settings->follows_system_keyboard_layout) {
+        return;
+    }
+
+    greeter->keyboard_layout_client = login_greeter_apply_system_keyboard_layout();
 }
 
 static void
@@ -385,7 +475,10 @@ create_form_and_monitor_windows(
     GdkDisplay                       *display
 )
 {
-    greeter->form            = create_login_form(greeter);
+    greeter->form = create_login_form(greeter);
+
+    apply_form_settings(greeter);
+
     greeter->monitor_windows = per_monitor_objects_create(display, &monitor_windows_handler, greeter);
 }
 
@@ -405,6 +498,17 @@ compositor_supports_layer_shell(
     return false;
 }
 
+static void
+build_greeter_interface(
+    struct login_greeter_application *greeter,
+    GdkDisplay                       *display
+)
+{
+    apply_keyboard_settings(greeter);
+    load_greeter_style_sheets(greeter, display);
+    create_form_and_monitor_windows(greeter, display);
+}
+
 /* Widgets can only be created once GtkApplication has started GTK. */
 static void
 handle_activate(
@@ -413,14 +517,12 @@ handle_activate(
 )
 {
     struct login_greeter_application *greeter = user_data;
-    GdkDisplay                       *display = gdk_display_get_default();
 
     if (!compositor_supports_layer_shell(gtk_application)) {
         return;
     }
 
-    load_greeter_style_sheets(greeter, display);
-    create_form_and_monitor_windows(greeter, display);
+    build_greeter_interface(greeter, gdk_display_get_default());
 
     /* Windows come and go with monitors; keep running without any. */
     g_application_hold(gtk_application);
@@ -440,6 +542,8 @@ handle_shutdown(
     }
 
     g_clear_pointer(&greeter->monitor_windows, per_monitor_objects_destroy);
+    g_clear_pointer(&greeter->style_sheets, shared_style_sheets_destroy);
+    g_clear_pointer(&greeter->keyboard_layout_client, compositor_ipc_client_destroy);
     g_application_release(gtk_application);
 }
 
@@ -460,6 +564,7 @@ release_greeter_resources(
 {
     login_daemon_conversation_destroy(greeter->conversation);
     login_form_widget_destroy(greeter->form);
+    login_greeter_settings_destroy(greeter->settings);
     g_object_unref(greeter->gtk_application);
 }
 
@@ -473,6 +578,7 @@ login_greeter_application_run(
     struct login_greeter_application greeter = {
         .options         = options,
         .gtk_application = gtk_application_new(NULL, G_APPLICATION_NON_UNIQUE),
+        .settings        = login_greeter_settings_load(options->configuration_override_path),
     };
 
     greeter.conversation = login_daemon_conversation_create(options->login_daemon_socket_path, &conversation_handler, &greeter);

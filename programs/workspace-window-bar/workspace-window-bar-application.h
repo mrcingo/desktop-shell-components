@@ -8,8 +8,8 @@
 struct workspace_window_bar_options {
     const char *compositor_socket_path;
     const char *data_directory;
-
-    const char *style_sheet_override_path; // NULL for the shipped one
+    const char *configuration_override_path; // NULL for the usual places
+    const char *style_sheet_override_path;   // NULL for the shipped one
 };
 
 /* Runs until the compositor exits; returns false if it could not start. */

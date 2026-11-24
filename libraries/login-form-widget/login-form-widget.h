@@ -41,6 +41,12 @@ GtkWidget *login_form_widget_get_root_widget(struct login_form_widget *form);
 
 void login_form_widget_focus_next_field(struct login_form_widget *form);
 
+/* Fills in the username, as a login screen that remembers its user does. */
+void login_form_widget_fill_username(struct login_form_widget *form, const char *username);
+
+/* Selects the session at session_index in the session selector. */
+void login_form_widget_select_session(struct login_form_widget *form, guint session_index);
+
 void login_form_widget_set_busy(struct login_form_widget *form, bool is_busy);
 
 void login_form_widget_ask_question(struct login_form_widget *form, const char *question_text, bool answer_is_secret);

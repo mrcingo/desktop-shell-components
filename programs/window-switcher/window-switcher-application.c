@@ -2,12 +2,14 @@
 
 #include <gtk/gtk.h>
 
+#include "compositor-matched-appearance.h"
 #include "compositor-state-tracker.h"
 #include "monitor-connector-lookup.h"
-#include "shared-style-sheets.h"
 #include "toplevel-window-capture.h"
+#include "window-label-format.h"
 #include "window-switcher-application.h"
 #include "window-switcher-overlay.h"
+#include "window-switcher-settings.h"
 
 static const char select_next_command[]     = "nop desktop-shell-window-switcher next";
 static const char select_previous_command[] = "nop desktop-shell-window-switcher previous";
@@ -17,12 +19,12 @@ struct window_switcher_application {
     GtkApplication                       *gtk_application;
     bool                                  started_successfully;
 
-    struct compositor_state_tracker *compositor_state;
-
-    struct toplevel_window_capture *window_capture; // NULL without Wayland
-    struct window_switcher_overlay *overlay;
-
-    GPtrArray *pending_previews; // struct pending_preview
+    struct compositor_state_tracker      *compositor_state;
+    struct window_switcher_settings      *settings;
+    struct compositor_matched_appearance *appearance;
+    struct toplevel_window_capture       *window_capture; // NULL without Wayland
+    struct window_switcher_overlay       *overlay;
+    GPtrArray                            *pending_previews; // struct pending_preview
 };
 
 struct pending_preview {
@@ -112,6 +114,21 @@ request_preview(
     g_ptr_array_add(switcher->pending_previews, preview);
 }
 
+static void
+request_previews(
+    struct window_switcher_application *switcher,
+    GPtrArray                          *windows
+)
+{
+    if (!switcher->settings->shows_previews) {
+        return;
+    }
+
+    for (guint i = 0; i < windows->len; i++) {
+        request_preview(switcher, g_ptr_array_index(windows, i));
+    }
+}
+
 static int
 compare_focus_recency(
     const void *first,
@@ -125,24 +142,51 @@ compare_focus_recency(
     return window_focus_history_compare_recency(user_data, first_window->container_id, second_window->container_id);
 }
 
-/* A plain copy: the tree's array would bring its free function along. */
+/* The focused workspace's windows, or every window, as the settings ask. */
 static GPtrArray *
-windows_most_recently_focused_first(
-    struct window_switcher_application *switcher,
-    const struct compositor_output     *output
+candidate_windows(
+    struct window_switcher_application  *switcher,
+    const struct compositor_window_tree *tree,
+    const struct compositor_output      *focused_output
 )
 {
-    GPtrArray *windows = g_ptr_array_sized_new(output->windows_on_visible_workspace->len);
-
-    for (guint i = 0; i < output->windows_on_visible_workspace->len; i++) {
-        g_ptr_array_add(windows, g_ptr_array_index(output->windows_on_visible_workspace, i));
+    if (switcher->settings->includes_all_workspaces) {
+        return tree->all_windows;
     }
 
-    g_ptr_array_sort_with_data(
-        windows,
-        compare_focus_recency,
-        (void *)compositor_state_tracker_get_focus_history(switcher->compositor_state)
-    );
+    return focused_output->windows_on_visible_workspace;
+}
+
+/* A plain copy: the tree's array would bring its free function along. */
+static GPtrArray *
+copy_window_list(
+    GPtrArray *windows
+)
+{
+    GPtrArray *copy = g_ptr_array_sized_new(windows->len);
+
+    for (guint i = 0; i < windows->len; i++) {
+        g_ptr_array_add(copy, g_ptr_array_index(windows, i));
+    }
+
+    return copy;
+}
+
+static GPtrArray *
+windows_in_switching_order(
+    struct window_switcher_application *switcher,
+    GPtrArray                          *candidates
+)
+{
+    GPtrArray *windows = copy_window_list(candidates);
+
+    if (switcher->settings->orders_by_recent_focus) {
+        g_ptr_array_sort_with_data(
+            windows,
+            compare_focus_recency,
+            (void *)compositor_state_tracker_get_focus_history(switcher->compositor_state)
+        );
+    }
 
     return windows;
 }
@@ -160,32 +204,40 @@ destroy_switcher_entry(
 
 static struct window_switcher_entry *
 create_switcher_entry(
-    const struct compositor_window *window
+    struct window_switcher_application *switcher,
+    const struct compositor_window     *window
 )
 {
-    struct window_switcher_entry *entry = g_new0(struct window_switcher_entry, 1);
+    struct window_switcher_entry    *entry  = g_new0(struct window_switcher_entry, 1);
+    const struct window_label_values values = {
+        .name       = window->application_name,
+        .process_id = window->process_id,
+        .title      = window->title,
+        .workspace  = window->workspace_name,
+    };
 
     entry->container_id = window->container_id;
-    entry->label        = compositor_window_format_name_and_process_id(window);
+    entry->label        = window_label_format_expand(switcher->settings->label_format, &values);
 
     return entry;
 }
 
 static GPtrArray *
 create_switcher_entries(
-    GPtrArray *windows
+    struct window_switcher_application *switcher,
+    GPtrArray                          *windows
 )
 {
     GPtrArray *entries = g_ptr_array_new_with_free_func(destroy_switcher_entry);
 
     for (guint i = 0; i < windows->len; i++) {
-        g_ptr_array_add(entries, create_switcher_entry(g_ptr_array_index(windows, i)));
+        g_ptr_array_add(entries, create_switcher_entry(switcher, g_ptr_array_index(windows, i)));
     }
 
     return entries;
 }
 
-/* "next" preselects the previously focused window, "previous" the least recent one. */
+/* "next" preselects the window after the first, "previous" the last one. */
 static guint
 initial_selection(
     guint window_count,
@@ -207,69 +259,61 @@ show_overlay_with_previews(
     int                                 step
 )
 {
-    GPtrArray *entries = create_switcher_entries(windows);
+    GPtrArray *entries = create_switcher_entries(switcher, windows);
 
     window_switcher_overlay_show(switcher->overlay, monitor, entries, initial_selection(windows->len, step));
     g_ptr_array_unref(entries);
-
-    for (guint i = 0; i < windows->len; i++) {
-        request_preview(switcher, g_ptr_array_index(windows, i));
-    }
+    request_previews(switcher, windows);
 }
 
-/* With fewer than two windows on the focused workspace there is nothing to switch to. */
+/* With fewer than two windows there is nothing to switch to. */
 static void
-show_overlay_on_output(
+show_overlay_for(
     struct window_switcher_application *switcher,
-    const struct compositor_output     *output,
+    GdkMonitor                         *monitor,
+    GPtrArray                          *candidates,
     int                                 step
 )
 {
-    GdkMonitor *monitor = monitor_connector_lookup_find(gdk_display_get_default(), output->output_name);
-
-    if (monitor == NULL) {
+    if (candidates->len < 2) {
         return;
     }
 
-    GPtrArray *windows = windows_most_recently_focused_first(switcher, output);
+    GPtrArray *windows = windows_in_switching_order(switcher, candidates);
 
     show_overlay_with_previews(switcher, monitor, windows, step);
     g_ptr_array_unref(windows);
 }
 
-/* With fewer than two windows on the focused workspace there is nothing to switch to. */
-static const struct compositor_output *
-find_focused_output_with_several_windows(
-    struct window_switcher_application *switcher
+/* NULL while the focused output is unknown to the compositor or to GDK. */
+static GdkMonitor *
+monitor_of_output(
+    const struct compositor_output *output
 )
 {
-    const struct compositor_window_tree *tree   = compositor_state_tracker_get_window_tree(switcher->compositor_state);
-    const struct compositor_output      *output = compositor_window_tree_find_focused_output(tree);
-
     if (output == NULL) {
         return NULL;
     }
 
-    if (output->windows_on_visible_workspace->len < 2) {
-        return NULL;
-    }
-
-    return output;
+    return monitor_connector_lookup_find(gdk_display_get_default(), output->output_name);
 }
 
+/* The overlay opens on the focused output, whichever windows it lists. */
 static void
 open_overlay(
     struct window_switcher_application *switcher,
     int                                 step
 )
 {
-    const struct compositor_output *output = find_focused_output_with_several_windows(switcher);
+    const struct compositor_window_tree *tree    = compositor_state_tracker_get_window_tree(switcher->compositor_state);
+    const struct compositor_output      *output  = compositor_window_tree_find_focused_output(tree);
+    GdkMonitor                          *monitor = monitor_of_output(output);
 
-    if (output == NULL) {
+    if (monitor == NULL) {
         return;
     }
 
-    show_overlay_on_output(switcher, output, step);
+    show_overlay_for(switcher, monitor, candidate_windows(switcher, tree, output), step);
 }
 
 static void
@@ -318,10 +362,44 @@ handle_compositor_gone(
     g_application_quit(G_APPLICATION(switcher->gtk_application));
 }
 
+static void
+apply_settings(
+    struct window_switcher_application *switcher
+)
+{
+    struct window_switcher_settings *settings           = switcher->settings;
+    bool                             labels_show_titles = window_label_format_uses_title(settings->label_format);
+
+    compositor_state_tracker_follow_title_changes(switcher->compositor_state, labels_show_titles);
+    compositor_matched_appearance_refresh(switcher->appearance, settings->follows_sway_bar);
+    window_switcher_overlay_set_preview_options(switcher->overlay, settings->shows_previews, settings->maximum_preview_width);
+}
+
+static void
+reload_settings(
+    struct window_switcher_application *switcher
+)
+{
+    window_switcher_settings_destroy(switcher->settings);
+
+    switcher->settings = window_switcher_settings_load(switcher->options->configuration_override_path);
+
+    apply_settings(switcher);
+}
+
+static void
+handle_compositor_configuration_reloaded(
+    void *user_data
+)
+{
+    reload_settings(user_data);
+}
+
 static const struct compositor_state_tracker_handler compositor_state_handler = {
-    .handle_window_tree_updated = ignore_window_tree_update,
-    .handle_key_binding_command = handle_key_binding_command,
-    .handle_compositor_gone     = handle_compositor_gone,
+    .handle_window_tree_updated               = ignore_window_tree_update,
+    .handle_key_binding_command               = handle_key_binding_command,
+    .handle_compositor_gone                   = handle_compositor_gone,
+    .handle_compositor_configuration_reloaded = handle_compositor_configuration_reloaded,
 };
 
 static void
@@ -373,28 +451,20 @@ connect_to_compositor(
 }
 
 static void
-load_style_sheets(
+create_interface(
     struct window_switcher_application *switcher,
     GdkDisplay                         *display
 )
 {
-    shared_style_sheets_load_for_display(
+    switcher->appearance = compositor_matched_appearance_create(
         display,
+        compositor_state_tracker_get_ipc_client(switcher->compositor_state),
         switcher->options->data_directory,
         "window-switcher",
         switcher->options->style_sheet_override_path
     );
-}
-
-static void
-create_capture_and_overlay(
-    struct window_switcher_application *switcher,
-    GdkDisplay                         *display
-)
-{
-    switcher->window_capture       = toplevel_window_capture_create(display);
-    switcher->overlay              = window_switcher_overlay_create(switcher->gtk_application, &overlay_handler, switcher);
-    switcher->started_successfully = true;
+    switcher->window_capture = toplevel_window_capture_create(display);
+    switcher->overlay        = window_switcher_overlay_create(switcher->gtk_application, &overlay_handler, switcher);
 }
 
 /* Widgets can only be created once GtkApplication has started GTK. */
@@ -405,18 +475,20 @@ handle_activate(
 )
 {
     struct window_switcher_application *switcher = user_data;
-    GdkDisplay                         *display  = gdk_display_get_default();
 
     if (!connect_to_compositor(switcher)) {
         return;
     }
 
-    load_style_sheets(switcher, display);
-    create_capture_and_overlay(switcher, display);
+    create_interface(switcher, gdk_display_get_default());
+    reload_settings(switcher);
+
+    switcher->started_successfully = true;
+
     g_application_hold(gtk_application);
 }
 
-/* Previews are cancelled before the capture that owns them goes away. */
+/* Previews are cancelled before the capture that owns them goes away, the appearance before its connection. */
 static void
 handle_shutdown(
     GApplication *gtk_application,
@@ -428,7 +500,9 @@ handle_shutdown(
     g_ptr_array_set_size(switcher->pending_previews, 0);
     g_clear_pointer(&switcher->overlay, window_switcher_overlay_destroy);
     g_clear_pointer(&switcher->window_capture, toplevel_window_capture_destroy);
+    g_clear_pointer(&switcher->appearance, compositor_matched_appearance_destroy);
     g_clear_pointer(&switcher->compositor_state, compositor_state_tracker_destroy);
+    g_clear_pointer(&switcher->settings, window_switcher_settings_destroy);
 }
 
 bool

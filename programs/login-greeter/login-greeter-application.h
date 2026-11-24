@@ -14,8 +14,9 @@ struct login_greeter_options {
     const char *login_daemon_socket_path;
     const char *data_directory;
 
-    const char *style_sheet_override_path; // NULL for the shipped one
-    GPtrArray  *session_entries;           // struct desktop_session_entry, not empty
+    const char *configuration_override_path; // NULL for the usual places
+    const char *style_sheet_override_path;   // NULL for the shipped one
+    GPtrArray  *session_entries;             // struct desktop_session_entry, not empty
 };
 
 /*

@@ -1,17 +1,29 @@
-#include <stdbool.h>
-
 #include <gtk/gtk.h>
 
 #include "shared-style-sheets.h"
 
-static const char shared_theme_file_name[]  = "shared-theme.css";
-static const char user_configuration_name[] = "desktop-shell-components";
+static const char configuration_directory_name[] = "desktop-shell-components";
+static const char shared_theme_file_name[]       = "shared-theme.css";
 
 enum {
-    SHIPPED_THEME_PRIORITY     = GTK_STYLE_PROVIDER_PRIORITY_APPLICATION,
-    SHIPPED_COMPONENT_PRIORITY = GTK_STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
-    USER_THEME_PRIORITY        = GTK_STYLE_PROVIDER_PRIORITY_USER,
-    USER_COMPONENT_PRIORITY    = GTK_STYLE_PROVIDER_PRIORITY_USER + 1,
+    SHIPPED_THEME_PRIORITY    = GTK_STYLE_PROVIDER_PRIORITY_APPLICATION,
+    COMPOSITOR_THEME_PRIORITY = GTK_STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
+    SHIPPED_PROGRAM_PRIORITY  = GTK_STYLE_PROVIDER_PRIORITY_APPLICATION + 2,
+    SYSTEM_THEME_PRIORITY     = GTK_STYLE_PROVIDER_PRIORITY_USER,
+    SYSTEM_PROGRAM_PRIORITY   = GTK_STYLE_PROVIDER_PRIORITY_USER + 1,
+    USER_THEME_PRIORITY       = GTK_STYLE_PROVIDER_PRIORITY_USER + 2,
+    USER_PROGRAM_PRIORITY     = GTK_STYLE_PROVIDER_PRIORITY_USER + 3,
+};
+
+struct style_sheet_file {
+    GtkCssProvider *provider;
+    char           *path;
+};
+
+struct shared_style_sheets {
+    GdkDisplay     *display;
+    GPtrArray      *files; // struct style_sheet_file, in priority order
+    GtkCssProvider *compositor_theme;
 };
 
 const char *
@@ -42,99 +54,230 @@ report_style_sheet_error(
     g_free(location);
 }
 
-static void
-load_style_sheet(
-    GdkDisplay *display,
-    const char *style_sheet_path,
-    guint       priority
+static GtkCssProvider *
+add_provider(
+    struct shared_style_sheets *style_sheets,
+    guint                       priority
 )
 {
     GtkCssProvider *provider = gtk_css_provider_new();
 
     g_signal_connect(provider, "parsing-error", G_CALLBACK(report_style_sheet_error), NULL);
-    gtk_css_provider_load_from_path(provider, style_sheet_path);
-    gtk_style_context_add_provider_for_display(display, GTK_STYLE_PROVIDER(provider), priority);
-    g_object_unref(provider);
+    gtk_style_context_add_provider_for_display(style_sheets->display, GTK_STYLE_PROVIDER(provider), priority);
+
+    return provider;
 }
 
-/* User style sheets are optional, so a missing one is not an error. */
+/* A missing file loads as an empty style sheet, so creating it later takes effect on reload. */
 static void
-load_style_sheet_if_present(
-    GdkDisplay *display,
-    const char *style_sheet_path,
-    guint       priority
+read_style_sheet_file(
+    struct style_sheet_file *file
 )
 {
-    if (!g_file_test(style_sheet_path, G_FILE_TEST_IS_REGULAR)) {
+    if (!g_file_test(file->path, G_FILE_TEST_IS_REGULAR)) {
+        gtk_css_provider_load_from_string(file->provider, "");
         return;
     }
 
-    load_style_sheet(display, style_sheet_path, priority);
+    gtk_css_provider_load_from_path(file->provider, file->path);
 }
 
-/* Loads DIRECTORY/FILE_NAME, skipping it when it is optional and missing. */
 static void
-load_style_sheet_from_directory(
-    GdkDisplay *display,
-    const char *directory,
-    const char *file_name,
-    guint       priority,
-    bool        is_optional
+add_file_layer(
+    struct shared_style_sheets *style_sheets,
+    char                       *path,
+    guint                       priority
 )
 {
-    char *style_sheet_path = g_build_filename(directory, file_name, NULL);
+    struct style_sheet_file *file = g_new(struct style_sheet_file, 1);
 
-    if (is_optional) {
-        load_style_sheet_if_present(display, style_sheet_path, priority);
-    } else {
-        load_style_sheet(display, style_sheet_path, priority);
+    file->provider = add_provider(style_sheets, priority);
+    file->path     = path;
+
+    read_style_sheet_file(file);
+    g_ptr_array_add(style_sheets->files, file);
+}
+
+static char *
+existing_configuration_file(
+    const char *base_directory,
+    const char *file_name
+)
+{
+    char *path = g_build_filename(base_directory, configuration_directory_name, file_name, NULL);
+
+    if (g_file_test(path, G_FILE_TEST_IS_REGULAR)) {
+        return path;
     }
 
-    g_free(style_sheet_path);
+    g_free(path);
+
+    return NULL;
+}
+
+/* The first system configuration directory that has the file, else the first one, as for program settings. */
+static char *
+system_configuration_path(
+    const char *file_name
+)
+{
+    const char *const *system_directories = g_get_system_config_dirs();
+
+    for (size_t i = 0; system_directories[i] != NULL; i++) {
+        char *path = existing_configuration_file(system_directories[i], file_name);
+
+        if (path != NULL) {
+            return path;
+        }
+    }
+
+    return g_build_filename(system_directories[0], configuration_directory_name, file_name, NULL);
+}
+
+static char *
+user_configuration_path(
+    const char *file_name
+)
+{
+    return g_build_filename(g_get_user_config_dir(), configuration_directory_name, file_name, NULL);
 }
 
 static void
-load_shipped_style_sheets(
-    GdkDisplay *display,
+add_configuration_layers(
+    struct shared_style_sheets *style_sheets,
+    const char                 *program_file_name
+)
+{
+    add_file_layer(style_sheets, system_configuration_path(shared_theme_file_name), SYSTEM_THEME_PRIORITY);
+    add_file_layer(style_sheets, system_configuration_path(program_file_name), SYSTEM_PROGRAM_PRIORITY);
+    add_file_layer(style_sheets, user_configuration_path(shared_theme_file_name), USER_THEME_PRIORITY);
+    add_file_layer(style_sheets, user_configuration_path(program_file_name), USER_PROGRAM_PRIORITY);
+}
+
+static char *
+shipped_program_path(
     const char *data_directory,
-    const char *component_file_name,
+    const char *program_file_name,
     const char *style_sheet_override_path
 )
 {
-    load_style_sheet_from_directory(display, data_directory, shared_theme_file_name, SHIPPED_THEME_PRIORITY, false);
-
     if (style_sheet_override_path != NULL) {
-        load_style_sheet(display, style_sheet_override_path, SHIPPED_COMPONENT_PRIORITY);
-        return;
+        return g_strdup(style_sheet_override_path);
     }
 
-    load_style_sheet_from_directory(display, data_directory, component_file_name, SHIPPED_COMPONENT_PRIORITY, false);
+    return g_build_filename(data_directory, program_file_name, NULL);
 }
 
 static void
-load_user_style_sheets(
-    GdkDisplay *display,
-    const char *component_file_name
+destroy_style_sheet_file(
+    void *data
 )
 {
-    char *user_directory = g_build_filename(g_get_user_config_dir(), user_configuration_name, NULL);
+    struct style_sheet_file *file = data;
 
-    load_style_sheet_from_directory(display, user_directory, shared_theme_file_name, USER_THEME_PRIORITY, true);
-    load_style_sheet_from_directory(display, user_directory, component_file_name, USER_COMPONENT_PRIORITY, true);
-    g_free(user_directory);
+    g_object_unref(file->provider);
+    g_free(file->path);
+    g_free(file);
+}
+
+static void
+add_shipped_layers(
+    struct shared_style_sheets *style_sheets,
+    const char                 *data_directory,
+    const char                 *program_file_name,
+    const char                 *style_sheet_override_path
+)
+{
+    char *theme_path   = g_build_filename(data_directory, shared_theme_file_name, NULL);
+    char *program_path = shipped_program_path(data_directory, program_file_name, style_sheet_override_path);
+
+    add_file_layer(style_sheets, theme_path, SHIPPED_THEME_PRIORITY);
+    add_file_layer(style_sheets, program_path, SHIPPED_PROGRAM_PRIORITY);
+}
+
+struct shared_style_sheets *
+shared_style_sheets_create(
+    GdkDisplay *display,
+    const char *data_directory,
+    const char *program_name,
+    const char *style_sheet_override_path
+)
+{
+    struct shared_style_sheets *style_sheets = g_new0(struct shared_style_sheets, 1);
+
+    g_autofree char *program_file_name = g_strconcat(program_name, ".css", NULL);
+
+    *style_sheets = (struct shared_style_sheets){
+        .display = display,
+        .files   = g_ptr_array_new_with_free_func(destroy_style_sheet_file),
+    };
+
+    style_sheets->compositor_theme = add_provider(style_sheets, COMPOSITOR_THEME_PRIORITY);
+
+    add_shipped_layers(style_sheets, data_directory, program_file_name, style_sheet_override_path);
+    add_configuration_layers(style_sheets, program_file_name);
+
+    return style_sheets;
+}
+
+static void
+remove_provider(
+    struct shared_style_sheets *style_sheets,
+    GtkCssProvider             *provider
+)
+{
+    gtk_style_context_remove_provider_for_display(style_sheets->display, GTK_STYLE_PROVIDER(provider));
+}
+
+static void
+remove_every_provider(
+    struct shared_style_sheets *style_sheets
+)
+{
+    for (guint i = 0; i < style_sheets->files->len; i++) {
+        struct style_sheet_file *file = g_ptr_array_index(style_sheets->files, i);
+
+        remove_provider(style_sheets, file->provider);
+    }
+
+    remove_provider(style_sheets, style_sheets->compositor_theme);
 }
 
 void
-shared_style_sheets_load_for_display(
-    GdkDisplay *display,
-    const char *data_directory,
-    const char *component_name,
-    const char *style_sheet_override_path
+shared_style_sheets_destroy(
+    struct shared_style_sheets *style_sheets
 )
 {
-    char *component_file_name = g_strconcat(component_name, ".css", NULL);
+    if (style_sheets == NULL) {
+        return;
+    }
 
-    load_shipped_style_sheets(display, data_directory, component_file_name, style_sheet_override_path);
-    load_user_style_sheets(display, component_file_name);
-    g_free(component_file_name);
+    remove_every_provider(style_sheets);
+    g_object_unref(style_sheets->compositor_theme);
+    g_ptr_array_unref(style_sheets->files);
+    g_free(style_sheets);
+}
+
+void
+shared_style_sheets_set_compositor_theme(
+    struct shared_style_sheets *style_sheets,
+    const char                 *style_sheet_text
+)
+{
+    if (style_sheet_text == NULL) {
+        gtk_css_provider_load_from_string(style_sheets->compositor_theme, "");
+        return;
+    }
+
+    gtk_css_provider_load_from_string(style_sheets->compositor_theme, style_sheet_text);
+}
+
+void
+shared_style_sheets_reload_files(
+    struct shared_style_sheets *style_sheets
+)
+{
+    for (guint i = 0; i < style_sheets->files->len; i++) {
+        read_style_sheet_file(g_ptr_array_index(style_sheets->files, i));
+    }
 }

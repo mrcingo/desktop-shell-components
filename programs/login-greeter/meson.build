@@ -2,7 +2,9 @@ executable(
     'desktop-shell-login-greeter',
     [
         'login-greeter-application.c',
+        'login-greeter-keyboard-layout.c',
         'login-greeter-main.c',
+        'login-greeter-settings.c',
     ],
     c_args: [
         '-DG_LOG_DOMAIN="login-greeter"',
@@ -10,14 +12,18 @@ executable(
         '-DSESSION_ENTRIES_DIRECTORY="@0@"'.format(installation_paths.get('session_entries_directory')),
     ],
     dependencies: [
+        compositor_ipc_client_dependency,
         desktop_session_entries_dependency,
         program_command_line_dependency,
+        program_configuration_file_dependency,
         software_rendering_preference_dependency,
         layer_shell_window_dependency,
         login_daemon_conversation_dependency,
         login_form_widget_dependency,
         per_monitor_objects_dependency,
         shared_style_sheets_dependency,
+        system_keyboard_layout_dependency,
+        typed_json_member_lookup_dependency,
     ],
     install: true,
 )

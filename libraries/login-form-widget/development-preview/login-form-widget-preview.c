@@ -13,7 +13,9 @@
 #include "login-form-widget.h"
 #include "shared-style-sheets.h"
 
-static const char *preview_data_directory;
+static const char                 *preview_data_directory;
+static struct shared_style_sheets *preview_style_sheets; // lives as long as the preview
+
 static const char *preview_state_name = "empty";
 
 static void
@@ -163,7 +165,8 @@ handle_activate(
     struct login_form_widget *form   = login_form_widget_create(session_names, &ignoring_handler, NULL);
     GtkWindow                *window = create_preview_window(application);
 
-    shared_style_sheets_load_for_display(gdk_display_get_default(), preview_data_directory, "login-greeter", NULL);
+    preview_style_sheets = shared_style_sheets_create(gdk_display_get_default(), preview_data_directory, "login-greeter", NULL);
+
     show_form_in_window(form, window);
     g_timeout_add(300, apply_preview_state, form);
 }

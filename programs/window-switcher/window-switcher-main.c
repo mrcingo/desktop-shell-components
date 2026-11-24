@@ -22,9 +22,10 @@ run_switcher(
     }
 
     const struct window_switcher_options options = {
-        .compositor_socket_path    = compositor_socket_path,
-        .data_directory            = shared_style_sheets_resolve_data_directory(INSTALLED_DATA_DIRECTORY),
-        .style_sheet_override_path = command_line->style_sheet_override_path,
+        .compositor_socket_path      = compositor_socket_path,
+        .data_directory              = shared_style_sheets_resolve_data_directory(INSTALLED_DATA_DIRECTORY),
+        .configuration_override_path = command_line->configuration_override_path,
+        .style_sheet_override_path   = command_line->style_sheet_override_path,
     };
 
     return window_switcher_application_run(&options) ? EXIT_SUCCESS : EXIT_FAILURE;

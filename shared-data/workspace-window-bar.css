@@ -1,19 +1,14 @@
-/*
- * The bar along the bottom of each output, built like sway's own bar: the
- * same font size, and buttons with a 1px border and 5px of horizontal
- * padding like its workspace buttons. The height comes from the top bar.
- */
+/* The bar along the bottom of each output, built like sway's workspace buttons. */
 
 window.workspace-window-bar {
     background-color: var(--theme-background-color);
-    font-size:        10pt;
 }
 
 button.workspace-window-bar-entry {
     min-height:       0;
     margin:           0;
     padding:          0 5px;
-    border:           var(--theme-panel-border-width) solid var(--theme-background-color);
+    border:           1px solid var(--theme-background-color);
     background-color: var(--theme-background-color);
     color:            var(--theme-secondary-text-color);
 }
@@ -27,5 +22,5 @@ button.workspace-window-bar-entry:hover {
 button.workspace-window-bar-entry.focused-window {
     border-color:     var(--theme-accent-color);
     background-color: var(--theme-accent-color);
-    color:            var(--theme-text-color);
+    color:            var(--theme-accent-text-color);
 }
