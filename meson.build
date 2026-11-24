@@ -46,4 +46,5 @@ scdoc_dependency = dependency('scdoc', native: true,
 
 subdir('wayland-protocol-bindings')
 subdir('libraries')
+subdir('shared-data')
 subdir('development-tools')
