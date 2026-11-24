@@ -50,19 +50,21 @@ window_title_format_can_be_quoted(
 }
 
 /* Window values become markup-safe text; quotes turn into entities, so they never end the command's quotes. */
-static char *
-expand_placeholders(
+char *
+window_title_format_expand(
     const char                     *format,
-    const struct compositor_window *window
+    const struct compositor_window *window,
+    const char                     *title_text
 )
 {
+    g_autofree char *escaped_title     = g_markup_escape_text(title_text, -1);
     g_autofree char *escaped_name      = g_markup_escape_text(window->application_name, -1);
     g_autofree char *escaped_workspace = g_markup_escape_text(window->workspace_name, -1);
 
     const struct window_label_values values = {
         .name       = escaped_name,
         .process_id = window->process_id,
-        .title      = "%title",
+        .title      = escaped_title,
         .workspace  = escaped_workspace,
     };
 
@@ -71,8 +73,9 @@ expand_placeholders(
 
 char *
 window_title_format_command_build(
-    const char                     *format,
-    const struct compositor_window *window
+    const char *format,
+    int64_t     container_id,
+    const char *expanded_text
 )
 {
     if (!window_title_format_can_be_quoted(format)) {
@@ -81,13 +84,11 @@ window_title_format_command_build(
 
     char quote_character = choose_quote_character(format);
 
-    g_autofree char *expanded_format = expand_placeholders(format, window);
-
     return g_strdup_printf(
         "[con_id=%" PRId64 "] title_format %c%s%c",
-        window->container_id,
+        container_id,
         quote_character,
-        expanded_format,
+        expanded_text,
         quote_character
     );
 }

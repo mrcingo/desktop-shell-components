@@ -11,9 +11,16 @@ desktop-shell-window-title-format - adds the process ID to window title bars
 # DESCRIPTION
 
 *desktop-shell-window-title-format* sets the title bar text of every window,
-by default to its title followed by its process ID in grey. It follows the
+by default to its title followed by its process ID in grey. Long titles are
+shortened with "..." so the whole text fits the title bar. It follows the
 compositor through its IPC socket, found in _$SWAYSOCK_, sends a command only
-when a window's text changes, and exits when the compositor does.
+when a window's text changes, and exits when the compositor does. After a
+package upgrade, *swaymsg reload* restarts it from the new file.
+
+Fitting measures the text in the *font* of the main sway configuration file,
+minus *titlebar_padding* and *titlebar_border_thickness*; settings in included
+files are not seen. A window resized by hand is fitted again at its next
+focus or title change, as sway reports no resizes.
 
 The default format uses Pango markup, which sway only renders when its font
 is set with a *pango:* prefix. Title bars show only with *default_border
@@ -45,8 +52,10 @@ changes.
 
 *[titles]*
 	*enabled* = _true_|_false_ (false restores the plain titles)++
-	*format* = text with sway's *%title* *%app_id* *%class* *%instance* *%shell*,
-	plus *{pid}* *{name}* *{workspace}*; *{title}* means *%title*
+	*format* = text with *{title}* *{pid}* *{name}* *{workspace}*, plus sway's
+	*%title* *%app_id* *%class* *%instance* *%shell*, which are never shortened++
+	*title-length* = _0-10000_ (most characters of {title}; 0 for no limit)++
+	*fit-title-bar* = _true_|_false_
 
 The format may contain *"* or *'*, but not both, and must not end in a
 backslash; otherwise the default is used.

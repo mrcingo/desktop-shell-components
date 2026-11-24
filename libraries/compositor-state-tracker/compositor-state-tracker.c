@@ -501,3 +501,11 @@ compositor_state_tracker_get_ipc_client(
 {
     return tracker->ipc_client;
 }
+
+void
+compositor_state_tracker_refresh_window_tree(
+    struct compositor_state_tracker *tracker
+)
+{
+    request_window_tree(tracker);
+}

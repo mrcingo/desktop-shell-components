@@ -163,6 +163,20 @@ lookup_process_id(
     return (int)process_id;
 }
 
+/* sway's "deco_rect" is the title bar, already narrowed to its tab in tabbed layouts. */
+static int
+lookup_title_bar_width(
+    JsonObject *window_node
+)
+{
+    JsonObject *title_bar_rectangle = typed_json_lookup_object_member(window_node, "deco_rect");
+    int64_t     width               = 0;
+
+    typed_json_lookup_integer_member(title_bar_rectangle, "width", &width);
+
+    return (int)CLAMP(width, 0, G_MAXINT);
+}
+
 static char *
 copy_string_member_or_empty(
     JsonObject *node,
@@ -192,6 +206,7 @@ parse_window(
         .title                       = copy_string_member_or_empty(window_node, "name"),
         .workspace_name              = g_strdup(workspace_name),
         .process_id                  = lookup_process_id(window_node),
+        .title_bar_width             = lookup_title_bar_width(window_node),
         .toplevel_capture_identifier = g_strdup(typed_json_lookup_string_member(window_node, "foreign_toplevel_identifier")),
         .has_keyboard_focus          = typed_json_lookup_boolean_member(window_node, "focused", false),
     };

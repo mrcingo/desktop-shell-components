@@ -4,12 +4,19 @@
 #include "window-title-format-command.h"
 #include "window-title-format-settings.h"
 
-static const char default_title_format[] = "%title <span alpha='60%'>({pid})</span>";
+static const char default_title_format[] = "{title} <span alpha='60%'>({pid})</span>";
+
+enum {
+    DEFAULT_MAXIMUM_TITLE_CHARACTERS = 60,
+    LARGEST_MAXIMUM_TITLE_CHARACTERS = 10000,
+};
 
 static const struct program_configuration_key known_keys[] = {
-    {"titles", "enabled"},
-    {"titles", "format" },
-    {NULL,     NULL     },
+    {"titles", "enabled"      },
+    {"titles", "format"       },
+    {"titles", "title-length" },
+    {"titles", "fit-title-bar"},
+    {NULL,     NULL           },
 };
 
 /* A format the compositor cannot receive is reported and replaced by the default. */
@@ -33,6 +40,25 @@ read_title_format(
     return g_strdup(default_title_format);
 }
 
+static void
+read_settings(
+    struct window_title_format_settings *settings,
+    struct program_configuration_file   *configuration
+)
+{
+    settings->is_enabled               = program_configuration_file_read_boolean(configuration, "titles", "enabled", true);
+    settings->title_format             = read_title_format(configuration);
+    settings->maximum_title_characters = program_configuration_file_read_integer(
+        configuration,
+        "titles",
+        "title-length",
+        DEFAULT_MAXIMUM_TITLE_CHARACTERS,
+        0,
+        LARGEST_MAXIMUM_TITLE_CHARACTERS
+    );
+    settings->fits_title_bar = program_configuration_file_read_boolean(configuration, "titles", "fit-title-bar", true);
+}
+
 struct window_title_format_settings *
 window_title_format_settings_load(
     const char *override_path
@@ -42,9 +68,7 @@ window_title_format_settings_load(
     struct window_title_format_settings *settings      = g_new0(struct window_title_format_settings, 1);
 
     program_configuration_file_report_unknown_keys(configuration, known_keys);
-
-    settings->is_enabled   = program_configuration_file_read_boolean(configuration, "titles", "enabled", true);
-    settings->title_format = read_title_format(configuration);
+    read_settings(settings, configuration);
 
     program_configuration_file_destroy(configuration);
 

@@ -1,0 +1,5 @@
+# Leak sanitizer suppressions for memory that libraries keep on purpose for
+# the life of the process. Only third-party code belongs here.
+
+# fontconfig loads its configuration once (FcInit) and never frees it.
+leak:FcInit

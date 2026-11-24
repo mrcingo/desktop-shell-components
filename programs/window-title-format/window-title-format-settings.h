@@ -10,7 +10,9 @@
 
 struct window_title_format_settings {
     bool  is_enabled;
-    char *title_format; // see window-title-format-command.h; always quotable
+    char *title_format;             // see window-title-format-command.h; always quotable
+    int   maximum_title_characters; // 0 for no limit
+    bool  fits_title_bar;           // shorten titles so the whole text shows
 };
 
 /* override_path is the --config file, or NULL. */

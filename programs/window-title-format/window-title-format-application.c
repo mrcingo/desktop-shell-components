@@ -3,6 +3,11 @@
 #include <glib.h>
 
 #include "compositor-state-tracker.h"
+#include "compositor-title-bar-style.h"
+#include "rendered-text-width-measurement.h"
+#include "replaced-executable-restart.h"
+#include "typed-json-member-lookup.h"
+#include "window-title-fitting.h"
 #include "window-title-format-application.h"
 #include "window-title-format-command.h"
 #include "window-title-format-settings.h"
@@ -14,6 +19,9 @@ struct window_title_format_application {
 
     struct compositor_state_tracker     *compositor_state;
     struct window_title_format_settings *settings;
+    /* Both NULL until the compositor's configuration has arrived. */
+    struct compositor_title_bar_style      *title_bar_style;
+    struct rendered_text_width_measurement *text_measurement;
     /* The command last sent per window, so unchanged windows cost nothing. */
     GHashTable *sent_commands; // int64_t container ID -> char *command
 };
@@ -25,15 +33,57 @@ create_sent_commands_table(void)
 }
 
 static void
+run_compositor_request(
+    struct window_title_format_application *application,
+    enum compositor_ipc_request_type        request_type,
+    const char                             *payload,
+    compositor_ipc_reply_callback           reply_callback
+)
+{
+    struct compositor_ipc_client *client = compositor_state_tracker_get_ipc_client(application->compositor_state);
+
+    compositor_ipc_client_send_request(client, request_type, payload, reply_callback, application);
+}
+
+static void
 run_compositor_command(
     struct window_title_format_application *application,
     const char                             *command,
     compositor_ipc_reply_callback           reply_callback
 )
 {
-    struct compositor_ipc_client *client = compositor_state_tracker_get_ipc_client(application->compositor_state);
+    run_compositor_request(application, COMPOSITOR_IPC_REQUEST_RUN_COMMAND, command, reply_callback);
+}
 
-    compositor_ipc_client_send_request(client, COMPOSITOR_IPC_REQUEST_RUN_COMMAND, command, reply_callback, application);
+/* NULL when the titles are only limited by their number of characters. */
+static const struct rendered_text_width_measurement *
+choose_text_measurement(
+    struct window_title_format_application *application
+)
+{
+    if (!application->settings->fits_title_bar) {
+        return NULL;
+    }
+
+    return application->text_measurement;
+}
+
+static char *
+build_window_title_command(
+    struct window_title_format_application *application,
+    const struct compositor_window         *window
+)
+{
+    const struct window_title_fitting fitting = {
+        .format                   = application->settings->title_format,
+        .maximum_title_characters = application->settings->maximum_title_characters,
+        .measurement              = choose_text_measurement(application),
+        .text_space_width = compositor_title_bar_style_text_space(application->title_bar_style, window->title_bar_width),
+    };
+
+    g_autofree char *expanded_text = window_title_fitting_expand(&fitting, window);
+
+    return window_title_format_command_build(fitting.format, window->container_id, expanded_text);
 }
 
 /* Sends the window's command unless it was already sent, and records it in current_commands. */
@@ -44,7 +94,7 @@ format_window_title(
     GHashTable                             *current_commands
 )
 {
-    char       *command          = window_title_format_command_build(application->settings->title_format, window);
+    char       *command          = build_window_title_command(application, window);
     const char *previous_command = g_hash_table_lookup(application->sent_commands, &window->container_id);
 
     if (g_strcmp0(command, previous_command) != 0) {
@@ -54,13 +104,17 @@ format_window_title(
     g_hash_table_insert(current_commands, g_memdup2(&window->container_id, sizeof(int64_t)), command);
 }
 
-/* Closed windows drop out, because only the windows of this tree are kept. */
+/* Closed windows drop out, because only the windows of this tree are kept. Titles wait for the font. */
 static void
 format_all_window_titles(
     struct window_title_format_application *application,
     const struct compositor_window_tree    *tree
 )
 {
+    if (application->title_bar_style == NULL) {
+        return;
+    }
+
     GHashTable *current_commands = create_sent_commands_table();
 
     for (guint i = 0; i < tree->all_windows->len; i++) {
@@ -81,12 +135,24 @@ handle_window_tree_updated(
     format_all_window_titles(user_data, tree);
 }
 
+/*
+ * Key bindings resize windows and change layouts, which sway reports with
+ * no event, so title bars may have a new width. "nop" bindings change nothing.
+ */
 static void
-ignore_key_binding_command(
+handle_key_binding_command(
     void       *user_data,
     const char *command
 )
-{}
+{
+    struct window_title_format_application *application = user_data;
+
+    if (g_str_has_prefix(command, "nop")) {
+        return;
+    }
+
+    compositor_state_tracker_refresh_window_tree(application->compositor_state);
+}
 
 static void
 handle_compositor_gone(
@@ -158,48 +224,144 @@ reformat_all_window_titles(
 }
 
 static void
+replace_title_bar_style(
+    struct window_title_format_application *application,
+    const char                             *configuration_text
+)
+{
+    compositor_title_bar_style_destroy(application->title_bar_style);
+    rendered_text_width_measurement_destroy(application->text_measurement);
+
+    application->title_bar_style  = compositor_title_bar_style_parse(configuration_text);
+    application->text_measurement = rendered_text_width_measurement_create(application->title_bar_style->font_description);
+}
+
+static JsonObject *
+reply_object(
+    JsonNode *reply_payload
+)
+{
+    if (reply_payload == NULL) {
+        return NULL;
+    }
+
+    if (!JSON_NODE_HOLDS_OBJECT(reply_payload)) {
+        return NULL;
+    }
+
+    return json_node_get_object(reply_payload);
+}
+
+/* Without a usable reply the text is empty and sway's defaults apply, so titles still appear. */
+static const char *
+read_configuration_text(
+    JsonNode *reply_payload
+)
+{
+    const char *configuration_text = typed_json_lookup_string_member(reply_object(reply_payload), "config");
+
+    if (configuration_text == NULL) {
+        return "";
+    }
+
+    return configuration_text;
+}
+
+static void
+handle_configuration_text(
+    JsonNode *reply_payload,
+    void     *user_data
+)
+{
+    replace_title_bar_style(user_data, read_configuration_text(reply_payload));
+    reformat_all_window_titles(user_data);
+}
+
+/* The font and padding come from the compositor's configuration, read again on every reload. */
+static void
+request_title_bar_style(
+    struct window_title_format_application *application
+)
+{
+    run_compositor_request(application, COMPOSITOR_IPC_REQUEST_GET_CONFIGURATION, NULL, handle_configuration_text);
+}
+
+static void
+reload_settings(
+    struct window_title_format_application *application
+)
+{
+    window_title_format_settings_destroy(application->settings);
+
+    application->settings = window_title_format_settings_load(application->options->configuration_override_path);
+}
+
+static void
 handle_compositor_configuration_reloaded(
     void *user_data
 )
 {
     struct window_title_format_application *application = user_data;
 
-    window_title_format_settings_destroy(application->settings);
-
-    application->settings = window_title_format_settings_load(application->options->configuration_override_path);
+    replaced_executable_restart_if_replaced(application->options->executable_restart);
+    reload_settings(application);
 
     if (!application->settings->is_enabled) {
         restore_titles_and_quit(application);
         return;
     }
 
-    reformat_all_window_titles(application);
+    request_title_bar_style(application);
 }
 
 static const struct compositor_state_tracker_handler compositor_state_handler = {
     .handle_window_tree_updated               = handle_window_tree_updated,
-    .handle_key_binding_command               = ignore_key_binding_command,
+    .handle_key_binding_command               = handle_key_binding_command,
     .handle_compositor_gone                   = handle_compositor_gone,
     .handle_compositor_configuration_reloaded = handle_compositor_configuration_reloaded,
 };
+
+static void
+report_connection_failure(
+    GError *error
+)
+{
+    g_printerr("Cannot connect to the compositor: %s\n", error->message);
+    g_error_free(error);
+}
+
+/* Titles are shown in the title bars, so every title change matters. */
+static void
+start_following_titles(
+    struct window_title_format_application *application
+)
+{
+    compositor_state_tracker_follow_title_changes(application->compositor_state, true);
+    request_title_bar_style(application);
+}
 
 static bool
 connect_to_compositor(
     struct window_title_format_application *application
 )
 {
-    const char *socket_path = application->options->compositor_socket_path;
-    GError     *error       = NULL;
+    GError *error = NULL;
 
-    application
-        ->compositor_state = compositor_state_tracker_connect(socket_path, &compositor_state_handler, application, &error);
+    application->compositor_state = compositor_state_tracker_connect(
+        application->options->compositor_socket_path,
+        &compositor_state_handler,
+        application,
+        &error
+    );
 
     if (application->compositor_state == NULL) {
-        g_printerr("Cannot connect to the compositor: %s\n", error->message);
-        g_error_free(error);
+        report_connection_failure(error);
+        return false;
     }
 
-    return application->compositor_state != NULL;
+    start_following_titles(application);
+
+    return true;
 }
 
 /* With the titles turned off there is nothing to do, which counts as success. */
@@ -222,6 +384,18 @@ format_titles_until_compositor_exits(
     return true;
 }
 
+static void
+release_application(
+    struct window_title_format_application *application
+)
+{
+    g_hash_table_unref(application->sent_commands);
+    compositor_title_bar_style_destroy(application->title_bar_style);
+    rendered_text_width_measurement_destroy(application->text_measurement);
+    window_title_format_settings_destroy(application->settings);
+    g_main_loop_unref(application->main_loop);
+}
+
 bool
 window_title_format_application_run(
     const struct window_title_format_options *options
@@ -236,9 +410,7 @@ window_title_format_application_run(
 
     bool ran_successfully = format_titles_until_compositor_exits(&application);
 
-    g_hash_table_unref(application.sent_commands);
-    window_title_format_settings_destroy(application.settings);
-    g_main_loop_unref(application.main_loop);
+    release_application(&application);
 
     return ran_successfully;
 }

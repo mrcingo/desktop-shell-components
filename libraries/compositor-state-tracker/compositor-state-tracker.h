@@ -59,6 +59,13 @@ void compositor_state_tracker_close_window(struct compositor_state_tracker *trac
  */
 void compositor_state_tracker_follow_title_changes(struct compositor_state_tracker *tracker, bool follows_title_changes);
 
+/*
+ * Reads the window tree again. sway reports no event when windows are
+ * resized or a layout changes, so a component that shows sizes calls this
+ * after key bindings, which do the resizing.
+ */
+void compositor_state_tracker_refresh_window_tree(struct compositor_state_tracker *tracker);
+
 /* For further requests, such as reading the bar's appearance. */
 struct compositor_ipc_client *compositor_state_tracker_get_ipc_client(struct compositor_state_tracker *tracker);
 

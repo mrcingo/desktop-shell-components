@@ -18,7 +18,7 @@
 					"nodes": [
 						{
 							"id": 11, "type": "con", "name": "Some page",
-							"app_id": "google-chrome", "pid": 2210,
+							"app_id": "google-chrome", "pid": 2210, "deco_rect": {"x": 0, "y": 0, "width": 480, "height": 24},
 							"foreign_toplevel_identifier": "aaaa",
 							"focused": false, "focus": [],
 							"nodes": [], "floating_nodes": []

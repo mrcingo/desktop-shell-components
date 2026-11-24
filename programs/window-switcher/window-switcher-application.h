@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 
+#include "replaced-executable-restart.h"
+
 /*
  * The Alt+Tab window switcher. It waits for the compositor to run one of
  * these key binding commands:
@@ -16,6 +18,8 @@ struct window_switcher_options {
     const char *data_directory;
     const char *configuration_override_path; // NULL for the usual places
     const char *style_sheet_override_path;   // NULL for the shipped one
+
+    const struct replaced_executable_restart *executable_restart; // used on configuration reloads
 };
 
 /* Runs until the compositor exits; returns false if it could not start. */

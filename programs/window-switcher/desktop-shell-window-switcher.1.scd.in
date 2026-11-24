@@ -17,7 +17,8 @@ and focuses the selected one once Alt is released.
 It runs in the background and waits for the compositor to run one of its key
 binding commands, so no process starts per key press. It follows the
 compositor through its IPC socket, found in _$SWAYSOCK_, and exits when the
-compositor does.
+compositor does. After a package upgrade, *swaymsg reload* restarts it from
+the new file.
 
 Previews are captured with the ext-image-copy-capture-v1 protocol, which
 sway supports from version 1.12. Windows that cannot be captured show an

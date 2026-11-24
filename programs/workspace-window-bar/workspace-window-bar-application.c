@@ -183,7 +183,10 @@ handle_compositor_configuration_reloaded(
     void *user_data
 )
 {
-    reload_settings(user_data);
+    struct workspace_window_bar_application *bar = user_data;
+
+    replaced_executable_restart_if_replaced(bar->options->executable_restart);
+    reload_settings(bar);
 }
 
 static const struct compositor_state_tracker_handler compositor_state_handler = {

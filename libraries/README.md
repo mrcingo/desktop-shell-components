@@ -11,7 +11,12 @@ Each library does one job. A library only uses the ones above it.
 | `compositor-window-tree`          | Outputs, visible windows and focus order from sway's layout tree |
 | `window-focus-history`            | Windows ordered by when they last had focus                      |
 | `window-label-format`             | Labels such as `{name} {pid}` for windows                        |
+| `text-ellipsis-truncation`        | Shorten text to a number of characters, ending in `...`          |
+| `compositor-configuration-directives` | Read top-level settings from sway's configuration text       |
+| `compositor-title-bar-style`      | The font and padding sway draws title bars with                  |
+| `rendered-text-width-measurement` | How wide text is in pixels in a Pango font                       |
 | `window-title-format-command`     | The command that sets a window's title bar text                  |
+| `window-title-fitting`            | Shorten a title so the title bar text fits                       |
 | `compositor-state-tracker`        | Keep the window tree and focus history current                   |
 | `compositor-bar-appearance`       | Read the sway bar's colors and font                              |
 | `login-daemon-protocol`           | Encode greetd requests and decode its replies                    |
@@ -34,6 +39,7 @@ Each library does one job. A library only uses the ones above it.
 | `program-configuration-file`      | Read optional INI settings, warning about mistakes               |
 | `software-rendering-preference`   | Use GTK's lighter renderer for small interfaces                  |
 | `single-instance-lock`            | Let only one copy of a program run per display                   |
+| `replaced-executable-restart`     | Restart a program whose file an upgrade replaced                 |
 
 ## Adding a library
 

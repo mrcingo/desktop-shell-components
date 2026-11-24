@@ -17,7 +17,8 @@ focused window is highlighted, and clicking a window focuses it.
 
 The bar is exactly as tall as the space the compositor's top bar reserves,
 so the two bars match. It follows the compositor through its IPC socket,
-found in _$SWAYSOCK_, and exits when the compositor does.
+found in _$SWAYSOCK_, and exits when the compositor does. After a package
+upgrade, *swaymsg reload* restarts it from the new file.
 
 # OPTIONS
 

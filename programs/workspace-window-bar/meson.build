@@ -18,6 +18,7 @@ executable(
         per_monitor_objects_dependency,
         program_command_line_dependency,
         program_configuration_file_dependency,
+        replaced_executable_restart_dependency,
         software_rendering_preference_dependency,
         single_instance_lock_dependency,
         window_label_format_dependency,

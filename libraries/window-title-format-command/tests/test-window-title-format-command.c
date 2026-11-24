@@ -14,18 +14,30 @@ static const struct {
     const char *format;
     const char *expected_command;
 } command_cases[] = {
-    {"%title ({pid})",                            "[con_id=7] title_format \"%title (4123)\""                         },
-    {"{title} {name}",                            "[con_id=7] title_format \"%title foot\""                           },
-    {"%title <span alpha=\"60%\">({pid})</span>", "[con_id=7] title_format '%title <span alpha=\"60%\">(4123)</span>'"},
-    {"[{workspace}] %title",                      "[con_id=7] title_format \"[2] %title\""                            },
+    {"{title} ({pid})",                            "[con_id=7] title_format \"short (4123)\""                         },
+    {"%title {name}",                              "[con_id=7] title_format \"%title foot\""                          },
+    {"{title} <span alpha=\"60%\">({pid})</span>", "[con_id=7] title_format 'short <span alpha=\"60%\">(4123)</span>'"},
+    {"[{workspace}] {title}",                      "[con_id=7] title_format \"[2] short\""                            },
 };
+
+static char *
+build_command(
+    const char                     *format,
+    const struct compositor_window *window,
+    const char                     *title_text
+)
+{
+    g_autofree char *expanded_text = window_title_format_expand(format, window, title_text);
+
+    return window_title_format_command_build(format, window->container_id, expanded_text);
+}
 
 static void
 assert_command(
     size_t case_index
 )
 {
-    g_autofree char *command = window_title_format_command_build(command_cases[case_index].format, &terminal);
+    g_autofree char *command = build_command(command_cases[case_index].format, &terminal, "short");
 
     g_assert_cmpstr(command, ==, command_cases[case_index].expected_command);
 }
@@ -38,7 +50,7 @@ test_commands_are_built(void)
     }
 }
 
-/* An application name can never close the quotes or inject markup. */
+/* A title or application name can never close the quotes or inject markup. */
 static void
 test_window_values_are_escaped(void)
 {
@@ -46,9 +58,9 @@ test_window_values_are_escaped(void)
 
     hostile_window.application_name = "a\"b'<i>&";
 
-    g_autofree char *command = window_title_format_command_build("{name}", &hostile_window);
+    g_autofree char *command = build_command("{name} {title}", &hostile_window, "</span>");
 
-    g_assert_cmpstr(command, ==, "[con_id=7] title_format \"a&quot;b&apos;&lt;i&gt;&amp;\"");
+    g_assert_cmpstr(command, ==, "[con_id=7] title_format \"a&quot;b&apos;&lt;i&gt;&amp; &lt;/span&gt;\"");
 }
 
 static void
@@ -56,7 +68,7 @@ test_unquotable_formats_are_refused(void)
 {
     g_assert_false(window_title_format_can_be_quoted("both \" and '"));
     g_assert_false(window_title_format_can_be_quoted("ends in \\"));
-    g_assert_null(window_title_format_command_build("both \" and '", &terminal));
+    g_assert_null(window_title_format_command_build("both \" and '", 7, "text"));
     g_assert_true(window_title_format_can_be_quoted(""));
 }
 

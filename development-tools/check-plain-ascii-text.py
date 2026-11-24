@@ -20,8 +20,11 @@ SKIPPED_DIRECTORIES = {".git", "__pycache__"}
 
 
 def is_checked_directory(parent_directory, name):
-    """Skips version control, caches and meson build directories, which hold generated upstream code."""
+    """Skips version control, caches, meson build directories and makepkg work directories, which hold generated upstream code."""
     if name in SKIPPED_DIRECTORIES:
+        return False
+
+    if os.path.isfile(os.path.join(parent_directory, "PKGBUILD")):
         return False
 
     return not os.path.isdir(os.path.join(parent_directory, name, "meson-private"))

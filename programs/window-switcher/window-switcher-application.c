@@ -392,7 +392,10 @@ handle_compositor_configuration_reloaded(
     void *user_data
 )
 {
-    reload_settings(user_data);
+    struct window_switcher_application *switcher = user_data;
+
+    replaced_executable_restart_if_replaced(switcher->options->executable_restart);
+    reload_settings(switcher);
 }
 
 static const struct compositor_state_tracker_handler compositor_state_handler = {

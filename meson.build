@@ -30,7 +30,10 @@ gio_unix_dependency = dependency('gio-unix-2.0', version: '>=2.76')
 json_glib_dependency = dependency('json-glib-1.0', version: '>=1.6')
 wayland_client_dependency = dependency('wayland-client')
 
-test_environment = ['G_DEBUG=fatal-warnings']
+test_environment = [
+    'G_DEBUG=fatal-warnings',
+    'LSAN_OPTIONS=suppressions=' + meson.project_source_root() / 'development-tools' / 'third-party-leak-suppressions.txt',
+]
 
 prefix = get_option('prefix')
 installation_paths = configuration_data({

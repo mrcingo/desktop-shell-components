@@ -20,6 +20,7 @@ struct compositor_window {
     char *title;            // never NULL
     char *workspace_name;   // never NULL
     int   process_id;
+    int   title_bar_width; // pixels; 0 when the window shows no title bar
 
     char *toplevel_capture_identifier; // NULL if the compositor has none
     bool  has_keyboard_focus;

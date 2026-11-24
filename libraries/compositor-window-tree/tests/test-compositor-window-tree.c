@@ -173,6 +173,7 @@ test_window_details_are_parsed(void)
     const struct compositor_window *browser = example_window(&example, "eDP-1", 0);
 
     g_assert_cmpint(browser->process_id, ==, 2210);
+    g_assert_cmpint(browser->title_bar_width, ==, 480);
     g_assert_cmpstr(browser->toplevel_capture_identifier, ==, "aaaa");
     assert_window_label(browser, "google-chrome 2210");
     unload_example_tree(&example);
@@ -184,6 +185,7 @@ test_missing_identifier_and_keyboard_focus(void)
     struct parsed_example_tree example = load_example_tree();
 
     g_assert_null(example_window(&example, "eDP-1", 2)->toplevel_capture_identifier);
+    g_assert_cmpint(example_window(&example, "eDP-1", 2)->title_bar_width, ==, 0);
     g_assert_true(example_window(&example, "HDMI-A-1", 0)->has_keyboard_focus);
     unload_example_tree(&example);
 }
