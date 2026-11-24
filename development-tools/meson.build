@@ -19,3 +19,21 @@ test(
         meson.project_source_root() / 'development-tools',
     ],
 )
+
+executable(
+    'list-wayland-globals',
+    'list-wayland-globals.c',
+    dependencies: wayland_client_dependency,
+    build_by_default: false,
+)
+
+executable(
+    'send-virtual-key-presses',
+    'send-virtual-key-presses.c',
+    dependencies: [
+        virtual_keyboard_unstable_v1_protocol_dependency,
+        dependency('xkbcommon'),
+        glib_dependency,
+    ],
+    build_by_default: false,
+)

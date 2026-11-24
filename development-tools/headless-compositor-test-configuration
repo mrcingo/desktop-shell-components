@@ -1,0 +1,31 @@
+# Compositor configuration for the headless end-to-end test: one output the
+# size of the laptop panel, a top bar like the desktop's, and the window
+# switcher's key bindings.
+
+output * bg #335577 solid_color
+output HEADLESS-1 resolution 1920x1200
+
+bar {
+    position top
+    font "Monaspace Neon" 10
+    status_command while true; do date '+%H:%M:%S'; sleep 1; done
+
+    colors {
+        background         #222222
+        statusline         #bbbbbb
+        focused_workspace  #005577 #005577 #eeeeee
+        active_workspace   #444444 #444444 #eeeeee
+        inactive_workspace #222222 #222222 #bbbbbb
+        urgent_workspace   #900000 #900000 #ffffff
+    }
+}
+
+default_border pixel 2
+font "Monaspace Neon" 10
+
+client.focused          #005577 #005577 #eeeeee #005577 #005577
+client.focused_inactive #444444 #222222 #bbbbbb #444444 #444444
+client.unfocused        #444444 #222222 #bbbbbb #444444 #444444
+
+bindsym Mod1+Tab       nop desktop-shell-window-switcher next
+bindsym Mod1+Shift+Tab nop desktop-shell-window-switcher previous
