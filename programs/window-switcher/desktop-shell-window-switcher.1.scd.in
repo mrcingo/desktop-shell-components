@@ -1,0 +1,69 @@
+desktop-shell-window-switcher(1)
+
+# NAME
+
+desktop-shell-window-switcher - Alt+Tab window switcher with live previews
+
+# SYNOPSIS
+
+*desktop-shell-window-switcher* [*-s* _FILE_]
+
+# DESCRIPTION
+
+*desktop-shell-window-switcher* switches between the windows of the focused
+workspace. It shows a preview of every window, most recently focused first,
+and focuses the selected one once Alt is released.
+
+It runs in the background and waits for the compositor to run one of its key
+binding commands, so no process starts per key press. It follows the
+compositor through its IPC socket, found in _$SWAYSOCK_, and exits when the
+compositor does.
+
+Previews are captured with the ext-image-copy-capture-v1 protocol, which
+sway supports from version 1.12. Windows that cannot be captured show an
+empty preview.
+
+# OPTIONS
+
+*-h, --help*
+	Show the help message and exit.
+
+*-s, --style* _FILE_
+	Load _FILE_ instead of the shipped window-switcher.css. The shared theme
+	is still loaded first.
+
+# CONFIGURATION
+
+The installed _@sysconfdir@/sway/config.d/60-desktop-shell-window-switcher.conf_
+holds these lines; edit it to use other keys:
+
+```
+exec_always desktop-shell-window-switcher
+bindsym Mod1+Tab nop desktop-shell-window-switcher next
+bindsym Mod1+Shift+Tab nop desktop-shell-window-switcher previous
+```
+
+A second copy started by a configuration reload exits at once.
+
+Hold Alt and press Tab to move through the windows, then release Alt to focus
+the selected one. While the switcher is open, the arrow keys also move the
+selection, Return focuses it, a click focuses the clicked window, and Escape
+closes the switcher without switching.
+
+# STYLING
+
+Style sheets load in this order, each able to override the ones before:
+_@shared_data_directory@/shared-theme.css_,
+_@shared_data_directory@/window-switcher.css_ (or the *--style* file), then
+_shared-theme.css_ and _window-switcher.css_ from
+_$XDG_CONFIG_HOME/desktop-shell-components_ if present.
+
+The window has the _window-switcher_ class and holds a box named
+_window-switcher-card_. Each window is a box with the _window-switcher-entry_
+class, plus _selected-window_ when selected, holding a picture with the
+_window-switcher-preview_ class and a label with the
+_window-switcher-entry-name_ class.
+
+# SEE ALSO
+
+*sway*(5), *sway-ipc*(7), *desktop-shell-workspace-window-bar*(1)

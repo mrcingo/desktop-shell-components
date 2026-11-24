@@ -1,0 +1,9 @@
+# Starts the window switcher with sway and binds Alt+Tab to it. Installed by
+# desktop-shell-window-switcher into /etc/sway/config.d, which sway's default
+# configuration includes. Starting it again on reload is harmless: a second
+# copy exits at once.
+
+exec_always @bindir@/desktop-shell-window-switcher
+
+bindsym Mod1+Tab       nop desktop-shell-window-switcher next
+bindsym Mod1+Shift+Tab nop desktop-shell-window-switcher previous
