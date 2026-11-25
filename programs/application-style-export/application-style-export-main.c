@@ -14,6 +14,7 @@ export_styles(
     const struct application_style_export_options options = {
         .compositor_socket_path      = g_getenv("SWAYSOCK"),
         .configuration_directory     = g_get_user_config_dir(),
+        .data_directory              = g_get_user_data_dir(),
         .configuration_override_path = command_line->configuration_override_path,
         .prints_launcher_arguments   = prints_launcher_arguments,
     };

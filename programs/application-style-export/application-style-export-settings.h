@@ -15,6 +15,7 @@ enum application_style_export_target {
     APPLICATION_STYLE_EXPORT_DESKTOP_SETTINGS, // gsettings
     APPLICATION_STYLE_EXPORT_LOCK_SCREEN,      // lock-screen
     APPLICATION_STYLE_EXPORT_PROMPTS,          // prompts
+    APPLICATION_STYLE_EXPORT_RECOLORED_ICONS,  // recolor-icons
     APPLICATION_STYLE_EXPORT_TARGET_COUNT,
 };
 
@@ -28,6 +29,7 @@ struct application_style_export_settings {
     bool                                       is_enabled;
     bool                                       exports_target[APPLICATION_STYLE_EXPORT_TARGET_COUNT];
     enum application_style_export_color_scheme color_scheme;
+    char                                     **recolored_icons; // plain icon names without "-symbolic"; never NULL
 };
 
 /* override_path is the --config file, or NULL. */

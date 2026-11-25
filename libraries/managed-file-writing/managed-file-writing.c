@@ -425,3 +425,103 @@ managed_file_set_key_file_values(
 
     return outcome;
 }
+
+/* A symbolic link or an unreadable file is never ours. */
+static bool
+carries_marker(
+    const struct existing_file *file,
+    const char                 *marker_line
+)
+{
+    if (file->contents == NULL) {
+        return false;
+    }
+
+    return starts_with_marker(file->contents, marker_line);
+}
+
+static enum managed_file_outcome
+unlink_managed_file(
+    const char *path,
+    GError    **error
+)
+{
+    if (unlink(path) != 0) {
+        set_error(error, "Cannot remove %s", path);
+        return MANAGED_FILE_FAILED;
+    }
+
+    return MANAGED_FILE_REMOVED;
+}
+
+static enum managed_file_outcome
+removal_finding(
+    bool exists,
+    bool is_ours
+)
+{
+    if (!exists) {
+        return MANAGED_FILE_UNCHANGED;
+    }
+
+    if (!is_ours) {
+        return MANAGED_FILE_LEFT_TO_USER;
+    }
+
+    return MANAGED_FILE_REMOVED;
+}
+
+/* MANAGED_FILE_REMOVED means "ours, may be removed"; otherwise what to report. */
+static enum managed_file_outcome
+classify_for_removal(
+    const char *path,
+    const char *marker_line
+)
+{
+    struct existing_file file    = inspect_existing_file(path);
+    bool                 exists  = file.exists;
+    bool                 is_ours = carries_marker(&file, marker_line);
+
+    clear_existing_file(&file);
+
+    return removal_finding(exists, is_ours);
+}
+
+static enum managed_file_outcome
+remove_if_ours(
+    const char *path,
+    const char *marker_line,
+    GError    **error
+)
+{
+    enum managed_file_outcome finding = classify_for_removal(path, marker_line);
+
+    if (finding != MANAGED_FILE_REMOVED) {
+        return finding;
+    }
+
+    return unlink_managed_file(path, error);
+}
+
+enum managed_file_outcome
+managed_file_remove(
+    const char *configuration_directory,
+    const char *relative_path,
+    const char *marker_line,
+    GError    **error
+)
+{
+    g_autofree char *path = build_checked_path(configuration_directory, relative_path, error);
+
+    if (path == NULL) {
+        return MANAGED_FILE_FAILED;
+    }
+
+    g_autofree char *folder = g_path_get_dirname(path);
+
+    if (!resolves_inside(folder, configuration_directory)) {
+        return MANAGED_FILE_LEFT_TO_USER; // through a link to somewhere else, or not there at all
+    }
+
+    return remove_if_ours(path, marker_line, error);
+}

@@ -22,6 +22,7 @@ enum managed_file_outcome {
     MANAGED_FILE_UNCHANGED,
     MANAGED_FILE_LEFT_TO_USER, // the user's own file, a symbolic link or unreadable settings: not touched
     MANAGED_FILE_FAILED,       // error says why
+    MANAGED_FILE_REMOVED,      // only from managed_file_remove
 };
 
 /*
@@ -36,6 +37,14 @@ enum managed_file_outcome managed_file_write(
     const char *contents,
     GError    **error
 );
+
+/*
+ * Removes a managed file that is no longer wanted: only when it carries
+ * marker_line as its first line and is not a symbolic link. A missing file
+ * gives MANAGED_FILE_UNCHANGED, someone else's MANAGED_FILE_LEFT_TO_USER.
+ */
+enum managed_file_outcome
+managed_file_remove(const char *configuration_directory, const char *relative_path, const char *marker_line, GError **error);
 
 /*
  * Sets keys of one group in an INI file (such as a toolkit's settings.ini)

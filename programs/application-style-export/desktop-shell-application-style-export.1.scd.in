@@ -22,12 +22,21 @@ other programs' per-user style files and exits:
 - the _gtk-application-prefer-dark-theme_ and _gtk-font-name_ keys of
   _gtk-3.0/settings.ini_ and _gtk-4.0/settings.ini_, keeping the others;
 - _swaylock/config_ and _swaynag/config_;
+- copies of the icons named by *recolored-icons*, Adwaita's single-color
+  icons recolored to the text color, in
+  _$XDG_DATA_HOME/icons/Adwaita/symbolic/CONTEXT/NAME-symbolic.svg_, which the
+  toolkit reads before the system's copy. Programs such as Thunar's side
+  pane show these icons as they are, so the dark gray would disappear on a
+  dark background. Full-color icons and the selected theme do not change.
+  Only the foreground gray is replaced; icons with scripts, links or
+  entities, or larger than 64 KiB, are skipped. Copies no longer listed are
+  removed, never files without the marker;
 - the GSettings keys _color-scheme_ and _font-name_ of
   _org.gnome.desktop.interface_, when that schema is installed.
 
-All paths are inside _$XDG_CONFIG_HOME_. A file is written only when it does
-not exist or its first line is this program's marker; delete the marker
-line to keep a file as your own. Files are replaced atomically, with mode
+All paths are inside _$XDG_CONFIG_HOME_, the icons inside _$XDG_DATA_HOME_.
+A file is written only when it does not exist or its first line is this
+program's marker; delete the marker line to keep a file as your own. Files are replaced atomically, with mode
 0644, never through a symbolic link or a linked folder leading outside
 _$XDG_CONFIG_HOME_, and only when their contents change. No privilege is
 needed or used.
@@ -60,8 +69,11 @@ are optional.
 
 *[export]*
 	*enabled* = _true_|_false_++
-	*gtk3*, *gtk4*, *gtk-settings*, *gsettings*, *lock-screen*, *prompts* = _true_|_false_++
+	*gtk3*, *gtk4*, *gtk-settings*, *gsettings*, *lock-screen*, *prompts*, *recolor-icons* = _true_|_false_++
 	*color-scheme* = _auto_|_dark_|_light_
+
+*[icons]*
+	*recolored-icons* = icon names separated by *;*, without *-symbolic*
 
 # SEE ALSO
 

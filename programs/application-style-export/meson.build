@@ -12,6 +12,7 @@ executable(
         managed_file_writing_dependency,
         program_command_line_dependency,
         program_configuration_file_dependency,
+        recolored_symbolic_icons_dependency,
         toolkit_style_sheet_writer_dependency,
         utility_program_style_writer_dependency,
     ],

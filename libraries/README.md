@@ -36,6 +36,7 @@ Each library does one job. A library only uses the ones above it.
 | `toolkit-style-sheet-writer`      | GTK 3 and GTK 4 user style sheets in the shared look             |
 | `utility-program-style-writer`    | Lock screen, prompt bar and launcher settings in the shared look |
 | `managed-file-writing`            | Keep files in ~/.config current without overwriting the user's   |
+| `recolored-symbolic-icons`        | Single-color icons recolored to the text color, in the user's icon overlay |
 | `established-theme-reading`       | The shared look from defaults, the sway bar and shared-theme.css |
 | `desktop-interface-settings`      | The desktop color scheme and font in GSettings                   |
 | `window-context-menu-actions`     | Close, kill, pause, copy and move actions of the window menu     |

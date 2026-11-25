@@ -125,15 +125,30 @@ test_key_file_values_are_merged(void)
     g_assert_nonnull(strstr(contents, "gtk-font-name=Monaspace Neon 10"));
 }
 
+/* Only our own files are removed; the user's and missing ones are left. */
+static void
+test_only_managed_files_are_removed(void)
+{
+    g_autofree char *directory = g_dir_make_tmp("managed-file-XXXXXX", NULL);
+
+    managed_file_write(directory, "icons/ours.svg", marker, "<svg/>\n", NULL);
+    write_file(directory, "mine.svg", "<svg/>\n");
+    g_assert_cmpint(managed_file_remove(directory, "icons/ours.svg", marker, NULL), ==, MANAGED_FILE_REMOVED);
+    g_assert_cmpint(managed_file_remove(directory, "icons/ours.svg", marker, NULL), ==, MANAGED_FILE_UNCHANGED);
+    g_assert_cmpint(managed_file_remove(directory, "mine.svg", marker, NULL), ==, MANAGED_FILE_LEFT_TO_USER);
+    g_assert_cmpint(managed_file_remove(directory, "../escape.svg", marker, NULL), ==, MANAGED_FILE_FAILED);
+}
+
 static const struct {
     const char *test_path;
     GTestFunc   test_function;
 } registered_tests[] = {
-    {"/managed-file-writing/kept-current", test_managed_file_is_kept_current},
-    {"/managed-file-writing/user-file",    test_user_file_is_left_alone     },
-    {"/managed-file-writing/links",        test_links_are_refused           },
-    {"/managed-file-writing/paths",        test_paths_must_stay_inside      },
-    {"/managed-file-writing/key-file",     test_key_file_values_are_merged  },
+    {"/managed-file-writing/kept-current", test_managed_file_is_kept_current  },
+    {"/managed-file-writing/user-file",    test_user_file_is_left_alone       },
+    {"/managed-file-writing/links",        test_links_are_refused             },
+    {"/managed-file-writing/paths",        test_paths_must_stay_inside        },
+    {"/managed-file-writing/key-file",     test_key_file_values_are_merged    },
+    {"/managed-file-writing/removal",      test_only_managed_files_are_removed},
 };
 
 int

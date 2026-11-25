@@ -7,12 +7,13 @@
  * Writes the established look into other programs' per-user style files,
  * once, and exits: the toolkit style sheets and settings, the desktop
  * interface settings, the lock screen's and the prompt bar's
- * configuration. Or prints the launcher's options instead.
+ * configuration, and single-color icons recolored to the text color. Or prints the launcher's options instead.
  */
 
 struct application_style_export_options {
     const char *compositor_socket_path;      // NULL when not run inside sway
     const char *configuration_directory;     // $XDG_CONFIG_HOME
+    const char *data_directory;              // $XDG_DATA_HOME, for the recolored icons
     const char *configuration_override_path; // NULL for the usual places
     bool        prints_launcher_arguments;
 };
