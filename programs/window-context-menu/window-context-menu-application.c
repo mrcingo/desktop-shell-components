@@ -151,6 +151,19 @@ reopen_menu_for_click(
     }
 }
 
+/* No mouse button, when the menu closed without a click outside it. */
+static struct window_context_menu_outside_click
+copy_outside_click(
+    const struct window_context_menu_outside_click *click
+)
+{
+    if (click == NULL) {
+        return (struct window_context_menu_outside_click){0};
+    }
+
+    return *click;
+}
+
 static void
 handle_menu_closed(
     void                                           *user_data,
@@ -159,15 +172,14 @@ handle_menu_closed(
 {
     struct window_context_menu_application *menu_program = user_data;
 
+    /* The click belongs to the overlay, which goes away here. */
+    struct window_context_menu_outside_click kept_click = copy_outside_click(click);
+
     g_debug("menu closed");
     g_clear_pointer(&menu_program->overlay, window_context_menu_overlay_destroy);
 
-    if (click == NULL) {
-        return;
-    }
-
-    if (click->mouse_button == GDK_BUTTON_SECONDARY) {
-        reopen_menu_for_click(menu_program, click);
+    if (kept_click.mouse_button == GDK_BUTTON_SECONDARY) {
+        reopen_menu_for_click(menu_program, &kept_click);
     }
 }
 

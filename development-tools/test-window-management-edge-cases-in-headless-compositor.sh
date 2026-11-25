@@ -34,6 +34,14 @@ keys="$build_directory/development-tools/send-virtual-key-presses"
 snap_program="$build_directory/programs/window-snap/desktop-shell-window-snap"
 menu_program="$build_directory/programs/window-context-menu/desktop-shell-window-context-menu"
 
+# The input tools are not built by default; without them no key or click arrives.
+for tool in "$pointer" "$keys"; do
+    if [ ! -x "$tool" ]; then
+        echo "missing $tool: build it with ninja -C $build_directory development-tools/$(basename "$tool")" >&2
+        exit 1
+    fi
+done
+
 mkdir -p "$output_directory/configuration-home/desktop-shell-components"
 
 write_test_configuration() {

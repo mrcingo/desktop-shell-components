@@ -26,7 +26,8 @@ struct window_context_menu_outside_click {
 struct window_context_menu_overlay_handler {
     /*
      * The menu closed; the overlay may be destroyed now. click is the click
-     * outside the menu that closed it, or NULL when it closed otherwise.
+     * outside the menu that closed it, or NULL when it closed otherwise; it
+     * belongs to the overlay, so read it before destroying the overlay.
      */
     void (*handle_menu_closed)(void *user_data, const struct window_context_menu_outside_click *click);
 };
