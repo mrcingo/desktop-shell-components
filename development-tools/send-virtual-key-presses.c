@@ -7,7 +7,10 @@
  *   alt-up     release Alt (also shift-up, super-up)
  *   tab        press and release Tab
  *   escape     press and release Escape
+ *   left, right, up, down   press and release that arrow key
  *   wait       do nothing for one step
+ *
+ * VIRTUAL_KEY_STEP_MILLISECONDS sets another pause between steps.
  *
  * Example, Alt+Tab twice then release: send-virtual-key-presses alt-down tab tab alt-up
  */
@@ -39,6 +42,10 @@ enum {
     KEY_CODE_LEFT_ALT   = 56,
     KEY_CODE_LEFT_SHIFT = 42,
     KEY_CODE_LEFT_SUPER = 125,
+    KEY_CODE_UP         = 103,
+    KEY_CODE_LEFT       = 105,
+    KEY_CODE_RIGHT      = 106,
+    KEY_CODE_DOWN       = 108,
 };
 
 struct virtual_typist {
@@ -229,37 +236,49 @@ perform_modifier_step(
     return false;
 }
 
-static void
-tap_tab(
-    struct virtual_typist *typist
-)
-{
-    tap_key(typist, KEY_CODE_TAB);
-}
-
-static void
-tap_escape(
-    struct virtual_typist *typist
-)
-{
-    tap_key(typist, KEY_CODE_ESCAPE);
-}
-
-static void
-do_nothing(
-    struct virtual_typist *typist
-)
-{}
-
+/* Keys pressed and released by one step, by step name. */
 static const struct {
     const char *step_name;
-
-    void (*perform)(struct virtual_typist *typist);
-} steps[] = {
-    {"tab",    tap_tab   },
-    {"escape", tap_escape},
-    {"wait",   do_nothing},
+    uint32_t    key_code;
+} tapped_keys[] = {
+    {"tab",    KEY_CODE_TAB   },
+    {"escape", KEY_CODE_ESCAPE},
+    {"left",   KEY_CODE_LEFT  },
+    {"right",  KEY_CODE_RIGHT },
+    {"up",     KEY_CODE_UP    },
+    {"down",   KEY_CODE_DOWN  },
 };
+
+static void
+perform_tap_step(
+    struct virtual_typist *typist,
+    const char            *step_name
+)
+{
+    for (size_t i = 0; i < G_N_ELEMENTS(tapped_keys); i++) {
+        if (strcmp(tapped_keys[i].step_name, step_name) == 0) {
+            tap_key(typist, tapped_keys[i].key_code);
+        }
+    }
+}
+
+/* VIRTUAL_KEY_STEP_MILLISECONDS shortens the pause between steps, to test fast typing. */
+static useconds_t
+step_duration(void)
+{
+    const char *milliseconds = g_getenv("VIRTUAL_KEY_STEP_MILLISECONDS");
+    guint64     value        = 0;
+
+    if (milliseconds == NULL) {
+        return STEP_DURATION_IN_MICROSECONDS;
+    }
+
+    if (!g_ascii_string_to_unsigned(milliseconds, 10, 0, 5000, &value, NULL)) {
+        return STEP_DURATION_IN_MICROSECONDS;
+    }
+
+    return (useconds_t)(value * 1000);
+}
 
 static void
 perform_step(
@@ -267,15 +286,10 @@ perform_step(
     const char            *step_name
 )
 {
-    for (size_t i = 0; i < G_N_ELEMENTS(steps); i++) {
-        if (strcmp(steps[i].step_name, step_name) == 0) {
-            steps[i].perform(typist);
-        }
-    }
-
+    perform_tap_step(typist, step_name);
     perform_modifier_step(typist, step_name);
     wl_display_roundtrip(typist->display);
-    usleep(STEP_DURATION_IN_MICROSECONDS);
+    usleep(step_duration());
 }
 
 static bool

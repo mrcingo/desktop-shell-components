@@ -49,4 +49,45 @@ bool window_snap_state_area(
 bool window_snap_parse_key(const char *word, enum window_snap_key *key);
 bool window_snap_parse_state(const char *word, enum window_snap_state *state);
 
+/*
+ * Win+Left on a window already against the left edge (the left half or a
+ * left quarter) moves it to the monitor on the left, as the same shape on
+ * that monitor's right side, as on Windows; Win+Right likewise. Returns
+ * false when the key does not cross to another monitor.
+ */
+bool window_snap_state_crosses_monitors(
+    enum window_snap_state  state,
+    enum window_snap_key    key,
+    enum window_snap_state *state_on_neighbour
+);
+
+/*
+ * The monitor beside output in the key's direction (left or right): the
+ * nearest whose area lies on that side and overlaps it vertically. NULL if
+ * there is none, also for the keys up and down.
+ */
+const struct compositor_output *window_snap_find_neighbour_output(
+    const struct compositor_window_tree *tree,
+    const struct compositor_output      *output,
+    enum window_snap_key                 key
+);
+
+/*
+ * A frame carried from one workspace area to another: the same size when it
+ * fits, else shrunk to fit, at the same relative position, fully inside.
+ */
+struct compositor_rectangle window_snap_translate_frame(
+    const struct compositor_rectangle *frame,
+    const struct compositor_rectangle *from_area,
+    const struct compositor_rectangle *to_area
+);
+
+/*
+ * Whether the frame's top-left corner sits, within a few pixels, on the
+ * corner of a snapped state of the workspace area, where keyboard snapping
+ * puts windows. A snapped window found elsewhere was moved by the user.
+ */
+bool
+window_snap_frame_is_at_snap_corner(const struct compositor_rectangle *frame, const struct compositor_rectangle *workspace);
+
 #endif

@@ -1,3 +1,5 @@
+#include <inttypes.h>
+
 #include <gtk/gtk.h>
 
 #include "compositor-matched-appearance.h"
@@ -18,7 +20,8 @@ struct window_context_menu_application {
     struct compositor_state_tracker      *compositor_state;
     struct window_context_menu_settings  *settings;
     struct compositor_matched_appearance *appearance;
-    struct window_context_menu_overlay   *overlay; // NULL while no menu is open
+    struct window_context_menu_overlay   *overlay;        // NULL while no menu is open
+    int64_t                               menu_window_id; // the window the open menu is for
     bool                                  menu_requested;
 };
 
@@ -37,6 +40,7 @@ handle_menu_closed(
 {
     struct window_context_menu_application *menu_program = user_data;
 
+    g_debug("menu closed");
     g_clear_pointer(&menu_program->overlay, window_context_menu_overlay_destroy);
 }
 
@@ -83,8 +87,10 @@ show_menu(
     GdkRectangle                    menu_position = place_menu_below_title_bar(output, window);
 
     g_clear_pointer(&menu_program->overlay, window_context_menu_overlay_destroy);
+    g_debug("menu opened for window %" PRId64, window->container_id);
 
-    menu_program->overlay = window_context_menu_overlay_show(
+    menu_program->menu_window_id = window->container_id;
+    menu_program->overlay        = window_context_menu_overlay_show(
         menu_program->gtk_application,
         find_monitor(output),
         window_context_menu_target_create(window, "/proc"),
@@ -114,6 +120,25 @@ open_menu_for_marked_window(
     compositor_ipc_client_send_request(ipc_client_of(menu_program), COMPOSITOR_IPC_REQUEST_RUN_COMMAND, unmark, NULL, NULL);
 }
 
+/* A menu for a window that has closed meanwhile has nothing left to act on. */
+static void
+close_menu_of_closed_window(
+    struct window_context_menu_application *menu_program,
+    const struct compositor_window_tree    *tree
+)
+{
+    if (menu_program->overlay == NULL) {
+        return;
+    }
+
+    if (compositor_window_tree_find_window(tree, menu_program->menu_window_id) != NULL) {
+        return;
+    }
+
+    g_debug("menu closed: its window is gone");
+    g_clear_pointer(&menu_program->overlay, window_context_menu_overlay_destroy);
+}
+
 static void
 handle_window_tree_updated(
     void                                *user_data,
@@ -121,6 +146,8 @@ handle_window_tree_updated(
 )
 {
     struct window_context_menu_application *menu_program = user_data;
+
+    close_menu_of_closed_window(menu_program, tree);
 
     if (!menu_program->menu_requested) {
         return;

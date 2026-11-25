@@ -59,6 +59,7 @@ struct window_snap_application {
     bool                 press_pending;  // pressed; waiting for the tree that shows the mark
     bool                 released_early; // released before that tree came: a click
     struct drag_session *session;        // NULL while nothing is pressed
+    GQueue              *pending_words;  // keyboard words waiting for a fresh window tree
     int64_t              last_click_window;
     gint64               last_click_time;
 };
@@ -77,6 +78,7 @@ run_command(
     const char                     *command
 )
 {
+    g_debug("command: %s", command);
     compositor_ipc_client_send_request(ipc_client_of(snap), COMPOSITOR_IPC_REQUEST_RUN_COMMAND, command, NULL, NULL);
 }
 
@@ -227,6 +229,12 @@ forget_closed_windows(
 
 /* Snapping without dragging: keyboard and double click. */
 
+/* Where a keyboard word takes a window: a state, on the output showing it or on a neighbour. */
+struct snap_target {
+    enum window_snap_state          state;
+    const struct compositor_output *output;
+};
+
 static char *
 build_area_command(
     struct window_snap_application    *snap,
@@ -268,42 +276,75 @@ build_return_to_tiling_command(
     return window_snap_placement_build_command(&placement, window, &border_widths);
 }
 
+static bool
+contains_rectangle(
+    const struct compositor_rectangle *outer,
+    const struct compositor_rectangle *inner
+)
+{
+    if (inner->x < outer->x) {
+        return false;
+    }
+
+    if (inner->y < outer->y) {
+        return false;
+    }
+
+    if (inner->x + inner->width > outer->x + outer->width) {
+        return false;
+    }
+
+    return inner->y + inner->height <= outer->y + outer->height;
+}
+
+static bool
+is_on_some_workspace_area(
+    const struct compositor_window_tree *tree,
+    const struct compositor_rectangle   *frame
+)
+{
+    for (guint i = 0; i < tree->outputs->len; i++) {
+        const struct compositor_output *output = g_ptr_array_index(tree->outputs, i);
+
+        if (contains_rectangle(&output->workspace_area, frame)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/* A remembered frame whose monitor has gone is brought onto the window's monitor instead. */
+static struct compositor_rectangle
+frame_kept_on_screen(
+    const struct compositor_window_tree *tree,
+    const struct compositor_output      *output,
+    const struct compositor_rectangle   *frame
+)
+{
+    if (is_on_some_workspace_area(tree, frame)) {
+        return *frame;
+    }
+
+    return window_snap_translate_frame(frame, &output->workspace_area, &output->workspace_area);
+}
+
 static char *
 build_restore_command(
     struct window_snap_application      *snap,
     const struct compositor_window_tree *tree,
-    const struct compositor_window      *window
+    const struct compositor_window      *window,
+    const struct compositor_output      *output
 )
 {
-    const struct snap_record *record = ensure_record(snap, window->container_id);
+    const struct snap_record   *record = ensure_record(snap, window->container_id);
+    struct compositor_rectangle frame  = frame_kept_on_screen(tree, output, &record->frame);
 
     if (record->was_floating) {
-        return build_area_command(snap, window, &record->frame);
+        return build_area_command(snap, window, &frame);
     }
 
     return build_return_to_tiling_command(snap, tree, window, record);
-}
-
-static char *
-build_snapped_area_command(
-    struct window_snap_application      *snap,
-    const struct compositor_window_tree *tree,
-    const struct compositor_window      *window,
-    enum window_snap_state               new_state
-)
-{
-    const struct compositor_output *output = output_showing(tree, window);
-    struct compositor_rectangle     area;
-
-    if (output == NULL) {
-        return NULL;
-    }
-
-    if (!window_snap_state_area(new_state, &output->workspace_area, &area)) {
-        return NULL;
-    }
-
-    return build_area_command(snap, window, &area);
 }
 
 static char *
@@ -311,14 +352,18 @@ build_state_command(
     struct window_snap_application      *snap,
     const struct compositor_window_tree *tree,
     const struct compositor_window      *window,
-    enum window_snap_state               new_state
+    const struct snap_target            *target
 )
 {
-    if (new_state == WINDOW_SNAP_STATE_FREE) {
-        return build_restore_command(snap, tree, window);
+    struct compositor_rectangle area;
+
+    if (target->state == WINDOW_SNAP_STATE_FREE) {
+        return build_restore_command(snap, tree, window, target->output);
     }
 
-    return build_snapped_area_command(snap, tree, window, new_state);
+    window_snap_state_area(target->state, &target->output->workspace_area, &area);
+
+    return build_area_command(snap, window, &area);
 }
 
 /* Leaving the free state remembers where the window was, for restoring it later. */
@@ -341,25 +386,59 @@ remember_place_when_leaving_free_state(
     }
 }
 
-/* The window must be on a visible workspace. */
+/* Moving to another monitor carries the remembered frame along, so restoring stays on the new monitor. */
 static void
-apply_state(
+carry_remembered_frame(
     struct window_snap_application      *snap,
     const struct compositor_window_tree *tree,
     const struct compositor_window      *window,
-    enum window_snap_state               new_state
+    const struct compositor_output      *new_output
 )
 {
-    remember_place_when_leaving_free_state(snap, tree, window, new_state);
+    const struct compositor_output *old_output = output_showing(tree, window);
+    struct snap_record             *record     = ensure_record(snap, window->container_id);
 
-    g_autofree char *command = build_state_command(snap, tree, window, new_state);
-
-    if (command == NULL) {
+    if (old_output == new_output) {
         return;
     }
 
+    record->frame = window_snap_translate_frame(&record->frame, &old_output->workspace_area, &new_output->workspace_area);
+}
+
+/* A fullscreen window leaves fullscreen first, as Windows does with Win+arrows. */
+static char *
+prefix_leaving_fullscreen(
+    const struct compositor_window *window,
+    char                           *command
+)
+{
+    if (!window->is_fullscreen) {
+        return command;
+    }
+
+    char *prefixed = g_strdup_printf("[con_id=%" PRId64 "] fullscreen disable; %s", window->container_id, command);
+
+    g_free(command);
+
+    return prefixed;
+}
+
+/* The window must be on a visible workspace. */
+static void
+apply_target(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree,
+    const struct compositor_window      *window,
+    const struct snap_target            *target
+)
+{
+    remember_place_when_leaving_free_state(snap, tree, window, target->state);
+    carry_remembered_frame(snap, tree, window, target->output);
+
+    g_autofree char *command = prefix_leaving_fullscreen(window, build_state_command(snap, tree, window, target));
+
     run_command_then_focus(snap, command, window->container_id);
-    ensure_record(snap, window->container_id)->state = new_state;
+    ensure_record(snap, window->container_id)->state = target->state;
 }
 
 static const struct compositor_window *
@@ -389,31 +468,11 @@ keep_if_shown(
         return NULL;
     }
 
-    return output_showing(tree, window) != NULL ? window : NULL;
-}
-
-/* A key steps from the window's state, as on Windows; a state word jumps to it. */
-static bool
-choose_state_for_word(
-    struct window_snap_application *snap,
-    const struct compositor_window *window,
-    const char                     *word,
-    enum window_snap_state         *new_state
-)
-{
-    enum window_snap_key key;
-
-    if (window_snap_parse_state(word, new_state)) {
-        return true;
+    if (output_showing(tree, window) == NULL) {
+        return NULL;
     }
 
-    if (!window_snap_parse_key(word, &key)) {
-        return false;
-    }
-
-    *new_state = window_snap_state_after_key(current_state(snap, window->container_id), key);
-
-    return true;
+    return window;
 }
 
 /* The focused window if it is on a visible workspace, else NULL; tree may be NULL. */
@@ -429,6 +488,309 @@ find_focused_shown_window(
     return keep_if_shown(tree, find_focused_window(tree));
 }
 
+static bool
+is_at_snap_corner_of_some_output(
+    const struct compositor_window_tree *tree,
+    const struct compositor_rectangle   *frame
+)
+{
+    for (guint i = 0; i < tree->outputs->len; i++) {
+        const struct compositor_output *output = g_ptr_array_index(tree->outputs, i);
+
+        if (window_snap_frame_is_at_snap_corner(frame, &output->workspace_area)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/* Where keyboard snapping leaves windows, also while the compositor has not caught up yet. */
+static bool
+is_where_snapping_left_it(
+    const struct compositor_window_tree *tree,
+    const struct compositor_window      *window,
+    const struct snap_record            *record
+)
+{
+    struct compositor_rectangle frame = window_snap_frame_of(window);
+
+    if (window_snap_frame_is_at_snap_corner(&frame, &record->frame)) {
+        return true; // still where it was before the last command took effect
+    }
+
+    return is_at_snap_corner_of_some_output(tree, &frame);
+}
+
+/* A snapped window the user moved since is free again, as after dragging a snapped window on Windows. */
+static void
+forget_state_if_moved(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree,
+    const struct compositor_window      *window
+)
+{
+    struct snap_record *record = find_record(snap, window->container_id);
+
+    if (record == NULL) {
+        return;
+    }
+
+    if (record->state == WINDOW_SNAP_STATE_FREE) {
+        return;
+    }
+
+    if (!is_where_snapping_left_it(tree, window, record)) {
+        forget_record(snap, window->container_id);
+    }
+}
+
+/* Against an edge, a key carries the window to the next monitor; on the last monitor it stays. */
+static struct snap_target
+target_across_monitors(
+    const struct compositor_window_tree *tree,
+    const struct compositor_output      *output,
+    enum window_snap_state               state,
+    enum window_snap_state               crossed_state,
+    enum window_snap_key                 key
+)
+{
+    const struct compositor_output *neighbour = window_snap_find_neighbour_output(tree, output, key);
+
+    if (neighbour == NULL) {
+        return (struct snap_target){state, output};
+    }
+
+    return (struct snap_target){crossed_state, neighbour};
+}
+
+/* A key steps from the window's state, as on Windows. */
+static struct snap_target
+target_for_key(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree,
+    const struct compositor_window      *window,
+    enum window_snap_key                 key
+)
+{
+    enum window_snap_state          state   = current_state(snap, window->container_id);
+    const struct compositor_output *output  = output_showing(tree, window);
+    enum window_snap_state          crossed = WINDOW_SNAP_STATE_FREE;
+
+    if (window_snap_state_crosses_monitors(state, key, &crossed)) {
+        return target_across_monitors(tree, output, state, crossed, key);
+    }
+
+    return (struct snap_target){window_snap_state_after_key(state, key), output};
+}
+
+/* A state word jumps to that state on the window's monitor. */
+static bool
+parse_state_word(
+    const struct compositor_window_tree *tree,
+    const struct compositor_window      *window,
+    const char                          *word,
+    struct snap_target                  *target
+)
+{
+    target->output = output_showing(tree, window);
+
+    return window_snap_parse_state(word, &target->state);
+}
+
+static bool
+choose_target_for_word(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree,
+    const struct compositor_window      *window,
+    const char                          *word,
+    struct snap_target                  *target
+)
+{
+    enum window_snap_key key;
+
+    if (parse_state_word(tree, window, word, target)) {
+        return true;
+    }
+
+    if (!window_snap_parse_key(word, &key)) {
+        return false;
+    }
+
+    *target = target_for_key(snap, tree, window, key);
+
+    return true;
+}
+
+/*
+ * Nothing to do when the window already is in that state on that monitor:
+ * repeated presses send nothing, and Win+Down on a free window does nothing,
+ * since there is no minimizing.
+ */
+static bool
+changes_anything(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree,
+    const struct compositor_window      *window,
+    const struct snap_target            *target
+)
+{
+    if (window->is_fullscreen) {
+        return true;
+    }
+
+    if (target->state != current_state(snap, window->container_id)) {
+        return true;
+    }
+
+    return target->output != output_showing(tree, window);
+}
+
+/* Win+Shift+Left or Right: the window moves to the next monitor, keeping its state or its relative place. */
+static const struct {
+    const char          *word;
+    enum window_snap_key direction;
+} monitor_words[] = {
+    {"monitor-left",  WINDOW_SNAP_KEY_LEFT },
+    {"monitor-right", WINDOW_SNAP_KEY_RIGHT},
+};
+
+static bool
+parse_monitor_word(
+    const char           *word,
+    enum window_snap_key *direction
+)
+{
+    for (size_t i = 0; i < G_N_ELEMENTS(monitor_words); i++) {
+        if (g_strcmp0(word, monitor_words[i].word) == 0) {
+            *direction = monitor_words[i].direction;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/* A tiled window moves through the compositor's own command, which keeps it tiled there. */
+static void
+move_tiled_window_to_monitor(
+    struct window_snap_application *snap,
+    const struct compositor_window *window,
+    enum window_snap_key            direction
+)
+{
+    const char *side = direction == WINDOW_SNAP_KEY_LEFT ? "left" : "right";
+
+    g_autofree char *command = g_strdup_printf("[con_id=%" PRId64 "] move container to output %s", window->container_id, side);
+
+    run_command_then_focus(snap, command, window->container_id);
+}
+
+static void
+move_free_window_to_monitor(
+    struct window_snap_application *snap,
+    const struct compositor_window *window,
+    const struct compositor_output *from_output,
+    const struct compositor_output *to_output
+)
+{
+    struct compositor_rectangle frame      = window_snap_frame_of(window);
+    struct compositor_rectangle translated = window_snap_translate_frame(
+        &frame,
+        &from_output->workspace_area,
+        &to_output->workspace_area
+    );
+
+    g_autofree char *command = prefix_leaving_fullscreen(window, build_area_command(snap, window, &translated));
+
+    run_command_then_focus(snap, command, window->container_id);
+}
+
+static void
+move_window_to_monitor(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree,
+    const struct compositor_window      *window,
+    const struct compositor_output      *neighbour
+)
+{
+    enum window_snap_state   state  = current_state(snap, window->container_id);
+    const struct snap_target target = {state, neighbour};
+
+    if (state != WINDOW_SNAP_STATE_FREE) {
+        apply_target(snap, tree, window, &target);
+        return;
+    }
+
+    move_free_window_to_monitor(snap, window, output_showing(tree, window), neighbour);
+}
+
+/* Nothing happens when there is no monitor on that side. */
+static void
+move_to_monitor_beside(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree,
+    const struct compositor_window      *window,
+    enum window_snap_key                 direction
+)
+{
+    const struct compositor_output *neighbour = window_snap_find_neighbour_output(
+        tree,
+        output_showing(tree, window),
+        direction
+    );
+
+    if (neighbour == NULL) {
+        return;
+    }
+
+    if (!window->is_floating) {
+        move_tiled_window_to_monitor(snap, window, direction);
+        return;
+    }
+
+    move_window_to_monitor(snap, tree, window, neighbour);
+}
+
+/* Returns false when the word is not a monitor word. */
+static bool
+handle_monitor_word(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree,
+    const struct compositor_window      *window,
+    const char                          *word
+)
+{
+    enum window_snap_key direction;
+
+    if (!parse_monitor_word(word, &direction)) {
+        return false;
+    }
+
+    move_to_monitor_beside(snap, tree, window, direction);
+
+    return true;
+}
+
+static void
+snap_window_for_word(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree,
+    const struct compositor_window      *window,
+    const char                          *word
+)
+{
+    struct snap_target target;
+
+    if (!choose_target_for_word(snap, tree, window, word, &target)) {
+        return;
+    }
+
+    if (changes_anything(snap, tree, window, &target)) {
+        apply_target(snap, tree, window, &target);
+    }
+}
+
 static void
 snap_focused_window(
     struct window_snap_application *snap,
@@ -437,14 +799,15 @@ snap_focused_window(
 {
     const struct compositor_window_tree *tree   = compositor_state_tracker_get_window_tree(snap->compositor_state);
     const struct compositor_window      *window = find_focused_shown_window(tree);
-    enum window_snap_state               new_state;
 
     if (window == NULL) {
         return;
     }
 
-    if (choose_state_for_word(snap, window, word, &new_state)) {
-        apply_state(snap, tree, window, new_state);
+    forget_state_if_moved(snap, tree, window);
+
+    if (!handle_monitor_word(snap, tree, window, word)) {
+        snap_window_for_word(snap, tree, window, word);
     }
 }
 
@@ -456,13 +819,18 @@ toggle_maximized(
 {
     const struct compositor_window_tree *tree   = compositor_state_tracker_get_window_tree(snap->compositor_state);
     const struct compositor_window      *window = keep_if_shown(tree, compositor_window_tree_find_window(tree, container_id));
-    bool                                 is_maximized = current_state(snap, container_id) == WINDOW_SNAP_STATE_MAXIMIZED;
 
     if (window == NULL) {
         return;
     }
 
-    apply_state(snap, tree, window, is_maximized ? WINDOW_SNAP_STATE_FREE : WINDOW_SNAP_STATE_MAXIMIZED);
+    bool                     is_maximized = current_state(snap, container_id) == WINDOW_SNAP_STATE_MAXIMIZED;
+    const struct snap_target target       = {
+        is_maximized ? WINDOW_SNAP_STATE_FREE : WINDOW_SNAP_STATE_MAXIMIZED,
+        output_showing(tree, window)
+    };
+
+    apply_target(snap, tree, window, &target);
 }
 
 static bool
@@ -1039,7 +1407,56 @@ remove_redundant_groups(
     }
 }
 
+/*
+ * Floating windows move and go fullscreen without the compositor reporting
+ * it, so each keyboard word waits for a fresh tree; words typed quickly are
+ * handled one after the other, each on the tree that follows the last.
+ */
+static void
+queue_keyboard_word(
+    struct window_snap_application *snap,
+    const char                     *word
+)
+{
+    g_queue_push_tail(snap->pending_words, g_strdup(word));
+    compositor_state_tracker_refresh_window_tree(snap->compositor_state);
+}
+
+static void
+handle_next_pending_word(
+    struct window_snap_application *snap
+)
+{
+    g_autofree char *word = g_queue_pop_head(snap->pending_words);
+
+    if (word == NULL) {
+        return;
+    }
+
+    snap_focused_window(snap, word);
+
+    if (!g_queue_is_empty(snap->pending_words)) {
+        compositor_state_tracker_refresh_window_tree(snap->compositor_state);
+    }
+}
+
 /* Compositor bindings. */
+
+/* The press binding marked a window; this tree is the first to show which. */
+static void
+begin_pending_press(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree
+)
+{
+    if (!snap->press_pending) {
+        return;
+    }
+
+    snap->press_pending = false;
+
+    begin_press(snap, tree);
+}
 
 static void
 handle_window_tree_updated(
@@ -1051,14 +1468,8 @@ handle_window_tree_updated(
 
     forget_closed_windows(snap, tree);
     remove_redundant_groups(snap, tree);
-
-    if (!snap->press_pending) {
-        return;
-    }
-
-    snap->press_pending = false;
-
-    begin_press(snap, tree);
+    handle_next_pending_word(snap);
+    begin_pending_press(snap, tree);
 }
 
 /* The press binding also marks the window; the next tree shows which one. */
@@ -1142,7 +1553,7 @@ handle_word(
         }
     }
 
-    snap_focused_window(snap, word);
+    queue_keyboard_word(snap, word);
 }
 
 /* The word after "nop desktop-shell-window-snap" in a binding's command list, or NULL. */
@@ -1200,6 +1611,8 @@ handle_key_binding_command(
     struct window_snap_application *snap = user_data;
 
     g_autofree char *word = find_command_word(command);
+
+    g_debug("binding: %s", command);
 
     if (word == NULL) {
         refresh_after_other_binding(snap, command);
@@ -1333,6 +1746,16 @@ handle_shutdown(
     g_clear_pointer(&snap->settings, window_snap_settings_destroy);
 }
 
+static void
+release_application(
+    struct window_snap_application *snap
+)
+{
+    g_object_unref(snap->gtk_application);
+    g_hash_table_unref(snap->snap_records);
+    g_queue_free_full(snap->pending_words, g_free);
+}
+
 bool
 window_snap_application_run(
     const struct window_snap_options *options
@@ -1342,13 +1765,13 @@ window_snap_application_run(
         .options         = options,
         .gtk_application = gtk_application_new(NULL, G_APPLICATION_NON_UNIQUE),
         .snap_records    = g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, g_free),
+        .pending_words   = g_queue_new(),
     };
 
     g_signal_connect(snap.gtk_application, "activate", G_CALLBACK(handle_activate), &snap);
     g_signal_connect(snap.gtk_application, "shutdown", G_CALLBACK(handle_shutdown), &snap);
     g_application_run(G_APPLICATION(snap.gtk_application), 0, NULL);
-    g_object_unref(snap.gtk_application);
-    g_hash_table_unref(snap.snap_records);
+    release_application(&snap);
 
     return snap.started_successfully;
 }

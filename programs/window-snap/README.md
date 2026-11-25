@@ -13,8 +13,28 @@ quarter, as on Windows):
     bindsym Mod4+Right nop desktop-shell-window-snap right
     bindsym Mod4+Up    nop desktop-shell-window-snap up
     bindsym Mod4+Down  nop desktop-shell-window-snap down
+    bindsym Mod4+Shift+Left  nop desktop-shell-window-snap monitor-left
+    bindsym Mod4+Shift+Right nop desktop-shell-window-snap monitor-right
+
+As on Windows:
+
+- Win+Left/Right snap to a half; Win+Up then makes a quarter, Win+Down goes
+  back to the half; Win+Up on a free window maximizes, Win+Down restores.
+- On a window already against an edge, Win+Left/Right carries it to the
+  monitor on that side (left half becomes that monitor's right half). On
+  the last monitor it stays.
+- Win+Right on a left half (or Left on a right half) restores the window.
+- Win+Down on a free window does nothing: sway has no minimizing.
+- Win+Shift+Left/Right moves the window to the monitor on that side,
+  keeping its snapped shape, or its size and relative place.
+- A fullscreen window leaves fullscreen first.
+- A snapped window moved by hand is free again: the next Win+Up maximizes.
+- Restoring puts the window back where it was; if that monitor is gone, on
+  the monitor it is on now.
 
 `left-half`, `right-half`, `maximize` and `restore` jump straight there.
+Keys typed quickly are handled one after the other; a key that would
+change nothing sends nothing to sway.
 
 ## Optional: snapping title bars
 

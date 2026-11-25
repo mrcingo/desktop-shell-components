@@ -3,7 +3,8 @@
  * virtual pointer, for testing mouse handling inside a headless compositor
  * that has no real pointer. Each argument is one step, 300 ms apart:
  *
- *   move:X,Y      move to pixel X,Y of a 1920x1200 layout (the test output)
+ *   move:X,Y      move to pixel X,Y of the layout: 1920x1200 (the test output),
+ *                 or the size in VIRTUAL_POINTER_LAYOUT_SIZE, such as 3200x1200
  *   left-click    press and release the left button
  *   left-down     press and hold the left button, as when starting a drag
  *   left-up       release the left button
@@ -45,6 +46,8 @@ struct virtual_pointer_user {
     struct zwlr_virtual_pointer_manager_v1 *pointer_manager;
     struct zwlr_virtual_pointer_v1         *pointer;
     uint32_t                                event_time;
+    unsigned int                            layout_width; // pixels of the whole layout, for absolute moves
+    unsigned int                            layout_height;
 };
 
 static void
@@ -106,7 +109,7 @@ move_to(
         return false;
     }
 
-    zwlr_virtual_pointer_v1_motion_absolute(user->pointer, user->event_time++, x, y, LAYOUT_WIDTH, LAYOUT_HEIGHT);
+    zwlr_virtual_pointer_v1_motion_absolute(user->pointer, user->event_time++, x, y, user->layout_width, user->layout_height);
     zwlr_virtual_pointer_v1_frame(user->pointer);
 
     return true;
@@ -265,6 +268,22 @@ point_and_click(
     return succeeded;
 }
 
+/* All monitors together; VIRTUAL_POINTER_LAYOUT_SIZE overrides the single test output. */
+static void
+read_layout_size(
+    struct virtual_pointer_user *user
+)
+{
+    const char *layout_size = g_getenv("VIRTUAL_POINTER_LAYOUT_SIZE");
+
+    user->layout_width  = LAYOUT_WIDTH;
+    user->layout_height = LAYOUT_HEIGHT;
+
+    if (layout_size != NULL) {
+        sscanf(layout_size, "%ux%u", &user->layout_width, &user->layout_height);
+    }
+}
+
 int
 main(
     int   argument_count,
@@ -272,6 +291,8 @@ main(
 )
 {
     struct virtual_pointer_user user = {.event_time = 1};
+
+    read_layout_size(&user);
 
     if (!connect_virtual_pointer(&user)) {
         fprintf(stderr, "The compositor offers no virtual pointer\n");
