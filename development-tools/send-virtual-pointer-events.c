@@ -5,6 +5,8 @@
  *
  *   move:X,Y      move to pixel X,Y of a 1920x1200 layout (the test output)
  *   left-click    press and release the left button
+ *   left-down     press and hold the left button, as when starting a drag
+ *   left-up       release the left button
  *   middle-click  press and release the middle button
  *   right-click   press and release the right button
  *   wait          do nothing for one step
@@ -119,6 +121,42 @@ static const struct {
     {"right-click",  BUTTON_CODE_RIGHT },
 };
 
+static void
+set_button(
+    struct virtual_pointer_user *user,
+    uint32_t                     button_code,
+    uint32_t                     button_state
+)
+{
+    zwlr_virtual_pointer_v1_button(user->pointer, user->event_time++, button_code, button_state);
+    zwlr_virtual_pointer_v1_frame(user->pointer);
+}
+
+static const struct {
+    const char *step;
+    uint32_t    button_state;
+} left_button_steps[] = {
+    {"left-down", BUTTON_STATE_PRESSED },
+    {"left-up",   BUTTON_STATE_RELEASED},
+};
+
+/* Returns false when the step is not a press or release of the left button. */
+static bool
+perform_button_step(
+    struct virtual_pointer_user *user,
+    const char                  *step
+)
+{
+    for (size_t i = 0; i < G_N_ELEMENTS(left_button_steps); i++) {
+        if (strcmp(step, left_button_steps[i].step) == 0) {
+            set_button(user, BUTTON_CODE_LEFT, left_button_steps[i].button_state);
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /* Returns false when the step is not a click. */
 static bool
 perform_click_step(
@@ -148,6 +186,10 @@ perform_step(
     }
 
     if (perform_click_step(user, step)) {
+        return true;
+    }
+
+    if (perform_button_step(user, step)) {
         return true;
     }
 

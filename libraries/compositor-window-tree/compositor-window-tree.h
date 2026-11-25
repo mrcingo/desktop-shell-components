@@ -13,6 +13,23 @@
  * and the order in which windows were last focused.
  */
 
+/* A rectangle in layout pixels, as the compositor reports "rect". */
+struct compositor_rectangle {
+    int x;
+    int y;
+    int width;
+    int height;
+};
+
+/* The layout of the container a window sits in. */
+enum compositor_container_layout {
+    COMPOSITOR_CONTAINER_LAYOUT_UNKNOWN,
+    COMPOSITOR_CONTAINER_LAYOUT_SIDE_BY_SIDE,         // splith
+    COMPOSITOR_CONTAINER_LAYOUT_ON_TOP_OF_EACH_OTHER, // splitv
+    COMPOSITOR_CONTAINER_LAYOUT_TABBED,
+    COMPOSITOR_CONTAINER_LAYOUT_STACKED,
+};
+
 struct compositor_window {
     int64_t container_id;
 
@@ -21,8 +38,14 @@ struct compositor_window {
     char *workspace_name;   // never NULL
     int   process_id;
     int   title_bar_width; // pixels; 0 when the window shows no title bar
-    int   content_x;       // top-left corner of the window's content, in layout pixels
+    int   content_x;       // the window below its title bar, borders included, in layout pixels
     int   content_y;
+    int   content_width;
+    int   content_height;
+    int   title_bar_height; // 0 when the window shows no title bar
+    int   border_width;     // the border drawn around the content, on each side
+
+    enum compositor_container_layout parent_layout; // UNKNOWN for floating windows
 
     char *toplevel_capture_identifier; // NULL if the compositor has none
     bool  has_keyboard_focus;
@@ -33,13 +56,17 @@ struct compositor_window {
     bool   is_x11_window; // its process_id is then the X server's, shared by every X11 window
     char **marks;         // never NULL; may be empty
     bool   is_urgent;     // the window asked for attention
+    bool   is_visible;    // shown now, not a hidden tab or on a hidden workspace
 };
 
 struct compositor_output {
     char *output_name; // the connector name, such as eDP-1
     int   output_x;    // top-left corner, in layout pixels
     int   output_y;
-    bool  contains_focused_workspace;
+
+    struct compositor_rectangle output_area;
+    struct compositor_rectangle workspace_area; // of the visible workspace: the output less the bars
+    bool                        contains_focused_workspace;
     /* Space that panels such as a top bar reserve above the workspace. */
     int space_reserved_above_workspace;
     /* Tiled windows in layout order, then floating ones. */
@@ -65,6 +92,10 @@ const struct compositor_output *compositor_window_tree_find_focused_output(const
  * "container", is named after its title, so a title change renames it.
  */
 bool compositor_window_name_comes_from_title(JsonObject *window_node);
+
+/* A deep copy, to keep a window past the tree it came from. Free it with compositor_window_free(). */
+struct compositor_window *compositor_window_copy(const struct compositor_window *window);
+void                      compositor_window_free(struct compositor_window *window);
 
 bool compositor_window_has_mark(const struct compositor_window *window, const char *mark);
 

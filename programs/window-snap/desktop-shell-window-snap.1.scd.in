@@ -1,0 +1,98 @@
+desktop-shell-window-snap(1)
+
+# NAME
+
+desktop-shell-window-snap - Windows-like title bars: click, double click to maximize, drag to snap
+
+# SYNOPSIS
+
+*desktop-shell-window-snap* [*-c* _FILE_] [*-s* _FILE_]
+
+# DESCRIPTION
+
+*desktop-shell-window-snap* makes sway's title bars behave as on Windows,
+without any modifier key:
+
+- A click focuses the window, switching to its tab.
+- A double click maximizes the window over the whole workspace, as a
+  floating window, or restores it to where it was.
+- Dragging the title bar shows where the window will land, and puts it there
+  on release: near a screen side it fills that half, in a corner that
+  quarter, at the top edge the whole workspace; over another tiled window it
+  goes back into the tiling next to it, on the side nearest the pointer, or
+  over that window's title bar as a tab with it; anywhere else a floating
+  window simply moves. A maximized or snapped window dragged away gets its
+  former size back. Escape or the right button cancels.
+
+Windows that end up floating get a border of *floating-border-width*, tiled
+ones *tiled-border-width*.
+
+The installed _@sysconfdir@/sway/config.d/60-desktop-shell-window-snap.conf_
+starts the program and adds the title bar bindings:
+
+```
+bindsym button1 mark --add _window-snap-target, nop desktop-shell-window-snap press
+bindsym --release button1 nop desktop-shell-window-snap release
+
+mode "desktop-shell-window-snap" {
+    bindsym Escape nop desktop-shell-window-snap cancel
+}
+```
+
+Mouse bindings act on title bars only, so clicks inside windows are
+untouched. The program never takes the keyboard: a click changes focus only
+to the clicked window. It switches to the *desktop-shell-window-snap* mode
+only while a window is dragged, so that Escape cancels the drag, and back to
+the default mode when the drag ends. After a package upgrade, *swaymsg reload* restarts the program
+from the new file.
+
+# KEYBOARD
+
+The program also snaps the focused window when a binding runs
+*nop desktop-shell-window-snap* _WORD_. The words *left*, *right*, *up* and
+*down* step as Windows does with Super and the arrow keys: *left* then *up*
+gives the top left quarter, *up* maximizes a free window, *down* restores a
+maximized one. *left-half*, *right-half*, *maximize* and *restore* go
+straight to that state. For example:
+
+```
+bindsym Mod4+Left  nop desktop-shell-window-snap left
+bindsym Mod4+Right nop desktop-shell-window-snap right
+bindsym Mod4+Up    nop desktop-shell-window-snap up
+bindsym Mod4+Down  nop desktop-shell-window-snap down
+```
+
+# OPTIONS
+
+*-h, --help*
+	Show the help message and exit.
+
+*-c, --config* _FILE_
+	Read settings from _FILE_ instead of the usual places.
+
+*-s, --style* _FILE_
+	Load _FILE_ instead of the shipped window-snap.css.
+
+# SETTINGS
+
+Read from _$XDG_CONFIG_HOME/desktop-shell-components/window-snap.ini_,
+else _/etc/xdg/desktop-shell-components/window-snap.ini_. All are optional;
+*swaymsg reload* applies changes.
+
+*[snap]*
+	*enabled* = _true_|_false_++
+	*edge-zone-size* = _2-400_ pixels (24)++
+	*drag-threshold* = _1-100_ pixels (8)++
+	*floating-border-width* = _0-50_ (6)++
+	*tiled-border-width* = _0-50_ (2)
+
+*[preview]*
+	*opacity* = _0-100_ percent (30)++
+	*show-labels* = _true_|_false_
+
+*[appearance]*
+	*follow-sway-bar* = _true_|_false_
+
+# SEE ALSO
+
+*sway*(5), *desktop-shell-window-context-menu*(1)

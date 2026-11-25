@@ -191,6 +191,78 @@ rectangle_top_edge(
 }
 
 /* sway's "deco_rect" is the title bar, already narrowed to its tab in tabbed layouts. */
+/* Missing or invalid members leave the rectangle empty. */
+static struct compositor_rectangle
+read_rectangle(
+    JsonObject *tree_node,
+    const char *member_name
+)
+{
+    JsonObject *rectangle = typed_json_lookup_object_member(tree_node, member_name);
+    int64_t     values[4] = {0};
+
+    typed_json_lookup_integer_member(rectangle, "x", &values[0]);
+    typed_json_lookup_integer_member(rectangle, "y", &values[1]);
+    typed_json_lookup_integer_member(rectangle, "width", &values[2]);
+    typed_json_lookup_integer_member(rectangle, "height", &values[3]);
+
+    return (
+        struct compositor_rectangle
+    ){(int)values[0], (int)values[1], (int)CLAMP(values[2], 0, G_MAXINT), (int)CLAMP(values[3], 0, G_MAXINT)};
+}
+
+static int
+read_border_width(
+    JsonObject *window_node
+)
+{
+    int64_t border_width = 0;
+
+    typed_json_lookup_integer_member(window_node, "current_border_width", &border_width);
+
+    return (int)CLAMP(border_width, 0, G_MAXINT);
+}
+
+static const struct {
+    const char                      *name;
+    enum compositor_container_layout layout;
+} container_layouts[] = {
+    {"splith",  COMPOSITOR_CONTAINER_LAYOUT_SIDE_BY_SIDE        },
+    {"splitv",  COMPOSITOR_CONTAINER_LAYOUT_ON_TOP_OF_EACH_OTHER},
+    {"tabbed",  COMPOSITOR_CONTAINER_LAYOUT_TABBED              },
+    {"stacked", COMPOSITOR_CONTAINER_LAYOUT_STACKED             },
+};
+
+static enum compositor_container_layout
+read_container_layout(
+    JsonObject *container_node
+)
+{
+    const char *layout_name = typed_json_lookup_string_member(container_node, "layout");
+
+    for (size_t i = 0; i < G_N_ELEMENTS(container_layouts); i++) {
+        if (g_strcmp0(layout_name, container_layouts[i].name) == 0) {
+            return container_layouts[i].layout;
+        }
+    }
+
+    return COMPOSITOR_CONTAINER_LAYOUT_UNKNOWN;
+}
+
+/* Floating windows sit in no layout. */
+static enum compositor_container_layout
+read_parent_layout(
+    const struct compositor_window *window,
+    JsonObject                     *parent_node
+)
+{
+    if (window->is_floating) {
+        return COMPOSITOR_CONTAINER_LAYOUT_UNKNOWN;
+    }
+
+    return read_container_layout(parent_node);
+}
+
 static int
 lookup_title_bar_width(
     JsonObject *window_node
@@ -281,9 +353,27 @@ copy_marks(
     return (char **)g_ptr_array_free(marks, FALSE);
 }
 
+/* Sizes and layout, which only components that place windows need. */
+static void
+read_window_geometry(
+    struct compositor_window *window,
+    JsonObject               *window_node,
+    JsonObject               *parent_node
+)
+{
+    struct compositor_rectangle content = read_rectangle(window_node, "rect");
+
+    window->content_width    = content.width;
+    window->content_height   = content.height;
+    window->title_bar_height = read_rectangle(window_node, "deco_rect").height;
+    window->border_width     = read_border_width(window_node);
+    window->parent_layout    = read_parent_layout(window, parent_node);
+}
+
 static struct compositor_window *
 parse_window(
     JsonObject *window_node,
+    JsonObject *parent_node,
     const char *workspace_name
 )
 {
@@ -306,7 +396,10 @@ parse_window(
         .is_x11_window               = g_strcmp0(typed_json_lookup_string_member(window_node, "shell"), "xwayland") == 0,
         .marks                       = copy_marks(window_node),
         .is_urgent                   = typed_json_lookup_boolean_member(window_node, "urgent", false),
+        .is_visible                  = typed_json_lookup_boolean_member(window_node, "visible", false),
     };
+
+    read_window_geometry(window, window_node, parent_node);
 
     return window;
 }
@@ -314,7 +407,24 @@ parse_window(
 struct window_collection {
     GPtrArray  *windows;
     const char *workspace_name;
+    JsonObject *parent_node; // the container whose children are being visited
 };
+
+static void collect_windows_in_layout_order(JsonObject *tree_node, void *user_data);
+
+/* Children of a split, tabbed or stacked container, which is then their parent. */
+static void
+collect_windows_of_container(
+    JsonObject                     *container_node,
+    const struct window_collection *outer_collection
+)
+{
+    struct window_collection collection = *outer_collection;
+
+    collection.parent_node = container_node;
+
+    visit_child_nodes(container_node, collect_windows_in_layout_order, &collection);
+}
 
 static void
 collect_windows_in_layout_order(
@@ -325,11 +435,11 @@ collect_windows_in_layout_order(
     struct window_collection *collection = user_data;
 
     if (!tree_node_is_window(tree_node)) {
-        visit_child_nodes(tree_node, collect_windows_in_layout_order, collection);
+        collect_windows_of_container(tree_node, collection);
         return;
     }
 
-    g_ptr_array_add(collection->windows, parse_window(tree_node, collection->workspace_name));
+    g_ptr_array_add(collection->windows, parse_window(tree_node, collection->parent_node, collection->workspace_name));
 }
 
 /* Tiled windows in layout order, then floating ones. */
@@ -342,6 +452,7 @@ collect_workspace_windows(
     struct window_collection collection = {
         .windows        = windows,
         .workspace_name = typed_json_lookup_string_member(workspace_node, "name"),
+        .parent_node    = workspace_node,
     };
 
     visit_child_nodes(workspace_node, collect_windows_in_layout_order, &collection);
@@ -429,6 +540,17 @@ is_hidden_output_name(
     return g_str_has_prefix(output_name, "__");
 }
 
+static void
+read_output_position(
+    struct compositor_output *output,
+    JsonObject               *output_node
+)
+{
+    output->output_x    = rectangle_left_edge(output_node);
+    output->output_y    = rectangle_top_edge(output_node);
+    output->output_area = read_rectangle(output_node, "rect");
+}
+
 static struct compositor_output *
 create_output(
     JsonObject *output_node,
@@ -439,9 +561,9 @@ create_output(
 
     output->output_name                  = g_strdup(typed_json_lookup_string_member(output_node, "name"));
     output->contains_focused_workspace   = output_node == focused_output_node;
-    output->output_x                     = rectangle_left_edge(output_node);
-    output->output_y                     = rectangle_top_edge(output_node);
     output->windows_on_visible_workspace = g_ptr_array_new_with_free_func(destroy_window);
+
+    read_output_position(output, output_node);
 
     return output;
 }
@@ -460,6 +582,7 @@ collect_visible_workspace(
     }
 
     output->space_reserved_above_workspace = rectangle_top_edge(visible_workspace) - rectangle_top_edge(output_node);
+    output->workspace_area                 = read_rectangle(visible_workspace, "rect");
 
     collect_workspace_windows(visible_workspace, output->windows_on_visible_workspace);
 }
@@ -744,4 +867,32 @@ compositor_window_tree_find_window(
     }
 
     return NULL;
+}
+
+struct compositor_window *
+compositor_window_copy(
+    const struct compositor_window *window
+)
+{
+    struct compositor_window *copy = g_memdup2(window, sizeof(*window));
+
+    copy->application_name            = g_strdup(window->application_name);
+    copy->title                       = g_strdup(window->title);
+    copy->workspace_name              = g_strdup(window->workspace_name);
+    copy->toplevel_capture_identifier = g_strdup(window->toplevel_capture_identifier);
+    copy->marks                       = g_strdupv(window->marks);
+
+    return copy;
+}
+
+void
+compositor_window_free(
+    struct compositor_window *window
+)
+{
+    if (window == NULL) {
+        return;
+    }
+
+    destroy_window(window);
 }

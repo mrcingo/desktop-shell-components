@@ -15,6 +15,7 @@ pkgname=(
     desktop-shell-system-status-line
     desktop-shell-notification-daemon
     desktop-shell-tray-click-window-focus
+    desktop-shell-window-snap
 )
 pkgver=1.4.2
 pkgrel=1
@@ -227,4 +228,19 @@ package_desktop-shell-drive-mount-policy() {
     _install_into_staging
     _take_files usr/share/polkit-1/rules.d/50-desktop-shell-drive-mount-policy.rules
     _take_license
+}
+
+package_desktop-shell-window-snap() {
+    pkgdesc='Windows-like title bars for sway: click, double click to maximize, drag to snap with a preview'
+    depends=(desktop-shell-components-common glib2 glibc gtk4 gtk4-layer-shell json-glib sway)
+    backup=(
+        etc/sway/config.d/60-desktop-shell-window-snap.conf
+        etc/xdg/desktop-shell-components/window-snap.ini
+    )
+    install=desktop-shell-window-snap.install
+
+    _install_into_staging
+    _take_program desktop-shell-window-snap
+    _take_files usr/share/desktop-shell-components/window-snap.css etc/sway/config.d/60-desktop-shell-window-snap.conf
+    _take_files etc/xdg/desktop-shell-components/window-snap.ini
 }

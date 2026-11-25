@@ -3,8 +3,8 @@
  * keyboard, for testing key handling inside a headless compositor that has
  * no real keyboard. Each argument is one step, 300 ms apart:
  *
- *   alt-down   press and hold Alt
- *   alt-up     release Alt
+ *   alt-down   press and hold Alt (also shift-down, super-down)
+ *   alt-up     release Alt (also shift-up, super-up)
  *   tab        press and release Tab
  *   escape     press and release Escape
  *   wait       do nothing for one step
@@ -32,12 +32,13 @@ enum {
     KEYMAP_FORMAT_XKB_V1          = 1,
     KEY_STATE_RELEASED            = 0,
     KEY_STATE_PRESSED             = 1,
-    ALT_MODIFIER_MASK             = 1 << 3, // Mod1 in the default keymap
 
     /* Linux input event codes, which Wayland key events carry. */
-    KEY_CODE_ESCAPE   = 1,
-    KEY_CODE_TAB      = 15,
-    KEY_CODE_LEFT_ALT = 56,
+    KEY_CODE_ESCAPE     = 1,
+    KEY_CODE_TAB        = 15,
+    KEY_CODE_LEFT_ALT   = 56,
+    KEY_CODE_LEFT_SHIFT = 42,
+    KEY_CODE_LEFT_SUPER = 125,
 };
 
 struct virtual_typist {
@@ -46,6 +47,18 @@ struct virtual_typist {
     struct zwp_virtual_keyboard_manager_v1 *keyboard_manager;
     struct zwp_virtual_keyboard_v1         *keyboard;
     uint32_t                                event_time;
+    uint32_t                                held_modifiers; // modifier mask of the keys held now
+};
+
+/* Modifier keys, with their masks in the default keymap. */
+static const struct {
+    const char *name;
+    uint32_t    key_code;
+    uint32_t    modifier_mask;
+} modifier_keys[] = {
+    {"alt",   KEY_CODE_LEFT_ALT,   1 << 3}, // Mod1
+    {"shift", KEY_CODE_LEFT_SHIFT, 1 << 0},
+    {"super", KEY_CODE_LEFT_SUPER, 1 << 6}, // Mod4
 };
 
 static void
@@ -164,29 +177,56 @@ tap_key(
 }
 
 static void
-set_alt(
+set_modifier(
     struct virtual_typist *typist,
+    size_t                 modifier_index,
     bool                   is_held
 )
 {
-    send_key(typist, KEY_CODE_LEFT_ALT, is_held ? KEY_STATE_PRESSED : KEY_STATE_RELEASED);
-    zwp_virtual_keyboard_v1_modifiers(typist->keyboard, is_held ? ALT_MODIFIER_MASK : 0, 0, 0, 0);
+    uint32_t mask = modifier_keys[modifier_index].modifier_mask;
+
+    typist->held_modifiers = is_held ? typist->held_modifiers | mask : typist->held_modifiers & ~mask;
+
+    send_key(typist, modifier_keys[modifier_index].key_code, is_held ? KEY_STATE_PRESSED : KEY_STATE_RELEASED);
+    zwp_virtual_keyboard_v1_modifiers(typist->keyboard, typist->held_modifiers, 0, 0, 0);
 }
 
-static void
-hold_alt(
-    struct virtual_typist *typist
+/* Whether step_name is "NAME-down" or "NAME-up" for this modifier, and which. */
+static bool
+matches_modifier_step(
+    const char *step_name,
+    const char *modifier_name,
+    bool       *is_down
 )
 {
-    set_alt(typist, true);
+    size_t name_length = strlen(modifier_name);
+
+    if (strncmp(step_name, modifier_name, name_length) != 0) {
+        return false;
+    }
+
+    *is_down = strcmp(step_name + name_length, "-down") == 0;
+
+    return *is_down || strcmp(step_name + name_length, "-up") == 0;
 }
 
-static void
-release_alt(
-    struct virtual_typist *typist
+/* Steps such as "super-down" and "shift-up"; returns false for other steps. */
+static bool
+perform_modifier_step(
+    struct virtual_typist *typist,
+    const char            *step_name
 )
 {
-    set_alt(typist, false);
+    bool is_down = false;
+
+    for (size_t i = 0; i < G_N_ELEMENTS(modifier_keys); i++) {
+        if (matches_modifier_step(step_name, modifier_keys[i].name, &is_down)) {
+            set_modifier(typist, i, is_down);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 static void
@@ -216,11 +256,9 @@ static const struct {
 
     void (*perform)(struct virtual_typist *typist);
 } steps[] = {
-    {"alt-down", hold_alt   },
-    {"alt-up",   release_alt},
-    {"tab",      tap_tab    },
-    {"escape",   tap_escape },
-    {"wait",     do_nothing },
+    {"tab",    tap_tab   },
+    {"escape", tap_escape},
+    {"wait",   do_nothing},
 };
 
 static void
@@ -235,6 +273,7 @@ perform_step(
         }
     }
 
+    perform_modifier_step(typist, step_name);
     wl_display_roundtrip(typist->display);
     usleep(STEP_DURATION_IN_MICROSECONDS);
 }
