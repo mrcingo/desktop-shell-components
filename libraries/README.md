@@ -17,6 +17,8 @@ Each library does one job. A library only uses the ones above it.
 | `rendered-text-width-measurement` | How wide text is in pixels in a Pango font                       |
 | `window-title-format-command`     | The command that sets a window's title bar text                  |
 | `window-title-fitting`            | Shorten a title so the title bar text fits                       |
+| `window-snap-placement`           | Where a dragged window lands, and the command that puts it there |
+| `window-snap-keyboard-steps`      | Windows-like snapping with the arrow keys, step by step          |
 | `notification-request`            | Check and clean a notification another program sent             |
 | `notification-store`              | Recent notifications: IDs, replacement, unread                   |
 | `notification-sound-player`       | Play a notification sound without blocking, at most so often     |

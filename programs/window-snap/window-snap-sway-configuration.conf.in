@@ -1,0 +1,16 @@
+# Starts the Windows-like title bars with sway. Installed by
+# desktop-shell-window-snap into /etc/sway/config.d, which sway's default
+# configuration includes. Starting it again on reload is harmless: a second
+# copy exits at once. Turn it off with "enabled = false" in
+# ~/.config/desktop-shell-components/window-snap.ini.
+#
+# Pressing a title bar marks its window and tells the program; it then
+# follows the pointer: a click focuses the window, a double click maximizes
+# or restores it, a drag snaps it where the preview shows. The release
+# binding only fires for a click so quick that the program has not taken
+# over the pointer yet. Mouse bindings act on title bars only, so clicks
+# inside windows are untouched.
+
+exec_always @bindir@/desktop-shell-window-snap
+bindsym button1 mark --add _window-snap-target, nop desktop-shell-window-snap press
+bindsym --release button1 nop desktop-shell-window-snap release

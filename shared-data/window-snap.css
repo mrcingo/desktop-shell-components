@@ -1,0 +1,15 @@
+/*
+ * The surface that shows where a dragged window will land. Its background
+ * must not be fully transparent: a fully transparent surface gets no
+ * pointer events. One step of alpha out of 255 cannot be seen. The preview
+ * uses the drawing area's color, the label text the window's color.
+ */
+
+window.window-snap-overlay {
+    background-color: rgba(0, 0, 0, 0.004);
+    color:            var(--theme-accent-text-color);
+}
+
+window.window-snap-overlay .window-snap-preview {
+    color: var(--theme-accent-color);
+}

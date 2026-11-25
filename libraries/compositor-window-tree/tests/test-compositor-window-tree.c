@@ -324,6 +324,46 @@ test_marked_windows_are_found(void)
     unload_example_tree(&example);
 }
 
+/* Sizes and layouts, which components that place windows need. */
+static void
+test_window_geometry_is_parsed(void)
+{
+    struct parsed_example_tree      example = load_example_tree();
+    const struct compositor_window *browser = compositor_window_tree_find_window(example.tree, 11);
+
+    g_assert_cmpint(browser->content_width * 10000 + browser->content_height, ==, 480 * 10000 + 600);
+    g_assert_cmpint(browser->title_bar_height * 100 + browser->border_width, ==, 24 * 100 + 2);
+    g_assert_cmpint(browser->parent_layout, ==, COMPOSITOR_CONTAINER_LAYOUT_SIDE_BY_SIDE);
+    compositor_window_free(compositor_window_copy(browser));
+    unload_example_tree(&example);
+}
+
+static void
+test_parent_layout_and_visibility(void)
+{
+    struct parsed_example_tree      example = load_example_tree();
+    const struct compositor_window *browser = compositor_window_tree_find_window(example.tree, 11);
+    const struct compositor_window *xterm   = compositor_window_tree_find_window(example.tree, 13);
+
+    g_assert_cmpint(xterm->parent_layout, ==, COMPOSITOR_CONTAINER_LAYOUT_TABBED);
+    g_assert_true(browser->is_visible);
+    g_assert_false(xterm->is_visible);
+    unload_example_tree(&example);
+}
+
+static void
+test_output_areas_are_parsed(void)
+{
+    struct parsed_example_tree      example = load_example_tree();
+    const struct compositor_output *output  = compositor_window_tree_find_output_by_name(example.tree, "eDP-1");
+    const struct compositor_window *calc    = compositor_window_tree_find_window(example.tree, 15);
+
+    g_assert_cmpint(output->output_area.width * 10000 + output->output_area.height, ==, 1920 * 10000 + 1200);
+    g_assert_cmpint(output->workspace_area.y * 10000 + output->workspace_area.height, ==, 22 * 10000 + 1156);
+    g_assert_cmpint(calc->parent_layout, ==, COMPOSITOR_CONTAINER_LAYOUT_UNKNOWN);
+    unload_example_tree(&example);
+}
+
 static const struct {
     const char *test_path;
 
@@ -333,6 +373,9 @@ static const struct {
     {"/compositor-window-tree/windows",               test_windows_of_visible_workspace_in_layout_order},
     {"/compositor-window-tree/window-details",        test_window_details_are_parsed                   },
     {"/compositor-window-tree/window-states",         test_window_states_are_parsed                    },
+    {"/compositor-window-tree/window-geometry",       test_window_geometry_is_parsed                   },
+    {"/compositor-window-tree/parent-layout",         test_parent_layout_and_visibility                },
+    {"/compositor-window-tree/output-areas",          test_output_areas_are_parsed                     },
     {"/compositor-window-tree/marked-windows",        test_marked_windows_are_found                    },
     {"/compositor-window-tree/identifier-and-focus",  test_missing_identifier_and_keyboard_focus       },
     {"/compositor-window-tree/focus-order",           test_focus_order_follows_focus_lists             },

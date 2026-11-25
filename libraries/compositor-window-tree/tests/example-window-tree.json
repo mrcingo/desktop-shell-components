@@ -13,18 +13,18 @@
 			"floating_nodes": [],
 			"nodes": [
 				{
-					"id": 10, "type": "workspace", "name": "1", "focus": [12, 15, 11],
+					"id": 10, "type": "workspace", "name": "1", "layout": "splith", "focus": [12, 15, 11],
 					"rect": { "x": 0, "y": 22, "width": 1920, "height": 1156 },
 					"nodes": [
 						{
 							"id": 11, "type": "con", "name": "Some page",
-							"app_id": "google-chrome", "pid": 2210, "deco_rect": {"x": 0, "y": 0, "width": 480, "height": 24}, "rect": {"x": 10, "y": 46, "width": 480, "height": 600}, "marks": ["_menu", 7, "other"], "sticky": true, "fullscreen_mode": 1, "shell": "xdg_shell",
+							"app_id": "google-chrome", "pid": 2210, "deco_rect": {"x": 0, "y": 0, "width": 480, "height": 24}, "rect": {"x": 10, "y": 46, "width": 480, "height": 600}, "current_border_width": 2, "visible": true, "marks": ["_menu", 7, "other"], "sticky": true, "fullscreen_mode": 1, "shell": "xdg_shell",
 							"foreign_toplevel_identifier": "aaaa",
 							"focused": false, "focus": [],
 							"nodes": [], "floating_nodes": []
 						},
 						{
-							"id": 12, "type": "con", "name": null, "focus": [14, 13],
+							"id": 12, "type": "con", "name": null, "layout": "tabbed", "focus": [14, 13],
 							"nodes": [
 								{
 									"id": 13, "type": "con", "name": "xterm",

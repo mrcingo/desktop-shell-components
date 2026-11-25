@@ -4,6 +4,7 @@ install_data(
     'workspace-window-bar.css',
     'window-switcher.css',
     'window-context-menu.css',
+    'window-snap.css',
     install_dir: shared_data_directory,
 )
 
@@ -13,6 +14,7 @@ install_data(
     'default-settings/notification-daemon.ini',
     'default-settings/window-switcher.ini',
     'default-settings/window-context-menu.ini',
+    'default-settings/window-snap.ini',
     'default-settings/tray-click-window-focus.ini',
     'default-settings/window-title-format.ini',
     'default-settings/workspace-window-bar.ini',
