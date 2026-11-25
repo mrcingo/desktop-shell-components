@@ -13,9 +13,9 @@ pkgname=(
     desktop-shell-system-status-line
     desktop-shell-notification-daemon
 )
-pkgver=1.3.0
+pkgver=1.4.0
 pkgrel=1
-pkgdesc='Login screen, window bar, Alt+Tab switcher and title bar text for sway'
+pkgdesc='Login screen, bars, window menu, notifications and Alt+Tab switcher for sway'
 arch=(x86_64)
 license=(0BSD)
 makedepends=(
