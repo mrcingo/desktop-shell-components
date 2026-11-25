@@ -47,3 +47,11 @@ Optional. In `~/.config/desktop-shell-components/window-snap.ini`:
 
 Apply with `swaymsg reload`. With `enabled = false` title bars behave as
 sway's own again.
+
+## Tidy layouts
+
+Layout changes can leave a tab group holding nothing but another group,
+which sway shows as an extra title bar such as `T[foot thunar]`. The
+program removes such wrappers as soon as they appear; the windows and their
+tabs stay. Turn it off with `remove-redundant-groups = false` under
+`[layout]`.

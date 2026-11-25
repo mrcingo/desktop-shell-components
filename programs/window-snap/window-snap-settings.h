@@ -17,6 +17,7 @@ struct window_snap_settings {
     int  preview_opacity;       // percent
     bool shows_labels;
     bool follows_sway_bar;
+    bool removes_redundant_groups; // tab groups holding only another group
 };
 
 /* override_path is the --config file, or NULL. */

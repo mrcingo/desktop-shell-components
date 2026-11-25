@@ -1006,6 +1006,39 @@ begin_press(
     start_press_on_window(snap, tree, window);
 }
 
+/* Layout tidying. */
+
+/*
+ * A container holding only another container, left behind by layout
+ * changes, shows as an extra title bar such as "T[foot thunar]". "split
+ * none" on the inner one removes the wrapper and keeps everything inside.
+ */
+static void
+remove_redundant_group(
+    struct window_snap_application *snap,
+    int64_t                         inner_container_id
+)
+{
+    g_autofree char *command = g_strdup_printf("[con_id=%" PRId64 "] split none", inner_container_id);
+
+    run_command(snap, command);
+}
+
+static void
+remove_redundant_groups(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree
+)
+{
+    if (!snap->settings->removes_redundant_groups) {
+        return;
+    }
+
+    for (guint i = 0; i < tree->redundant_wrapper_child_ids->len; i++) {
+        remove_redundant_group(snap, g_array_index(tree->redundant_wrapper_child_ids, int64_t, i));
+    }
+}
+
 /* Compositor bindings. */
 
 static void
@@ -1017,6 +1050,7 @@ handle_window_tree_updated(
     struct window_snap_application *snap = user_data;
 
     forget_closed_windows(snap, tree);
+    remove_redundant_groups(snap, tree);
 
     if (!snap->press_pending) {
         return;
@@ -1130,6 +1164,33 @@ find_command_word(
     return NULL;
 }
 
+/* Layout bindings such as Win+W change the tree without any event; read it again to tidy. */
+static void
+refresh_after_other_binding(
+    struct window_snap_application *snap,
+    const char                     *command
+)
+{
+    if (g_str_has_prefix(command, "nop")) {
+        return;
+    }
+
+    compositor_state_tracker_refresh_window_tree(snap->compositor_state);
+}
+
+static void
+handle_word_if_enabled(
+    struct window_snap_application *snap,
+    const char                     *word
+)
+{
+    if (!snap->settings->is_enabled) {
+        return;
+    }
+
+    handle_word(snap, word);
+}
+
 static void
 handle_key_binding_command(
     void       *user_data,
@@ -1141,14 +1202,11 @@ handle_key_binding_command(
     g_autofree char *word = find_command_word(command);
 
     if (word == NULL) {
+        refresh_after_other_binding(snap, command);
         return;
     }
 
-    if (!snap->settings->is_enabled) {
-        return;
-    }
-
-    handle_word(snap, word);
+    handle_word_if_enabled(snap, word);
 }
 
 static void

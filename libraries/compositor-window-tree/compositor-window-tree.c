@@ -1,4 +1,5 @@
 #include "compositor-window-tree.h"
+#include "redundant-layout-wrapper-finder.h"
 #include "typed-json-member-lookup.h"
 
 static bool
@@ -725,6 +726,8 @@ compositor_window_tree_parse(
 
     fill_tree(tree, root);
 
+    tree->redundant_wrapper_child_ids = redundant_layout_wrapper_finder_find(root_node);
+
     return tree;
 }
 
@@ -740,6 +743,7 @@ compositor_window_tree_destroy(
     g_ptr_array_unref(tree->outputs);
     g_ptr_array_unref(tree->all_windows);
     g_array_unref(tree->window_ids_in_focus_order);
+    g_array_unref(tree->redundant_wrapper_child_ids);
     g_free(tree);
 }
 

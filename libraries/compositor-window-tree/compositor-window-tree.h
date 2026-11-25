@@ -77,6 +77,8 @@ struct compositor_window_tree {
     GPtrArray *outputs;                   // struct compositor_output
     GPtrArray *all_windows;               // struct compositor_window on every workspace
     GArray    *window_ids_in_focus_order; // int64_t, most recent first
+    /* int64_t: containers wrapped by a container that holds nothing else; see redundant-layout-wrapper-finder.h. */
+    GArray *redundant_wrapper_child_ids;
 };
 
 /* Returns NULL if root_node is not a window tree. */

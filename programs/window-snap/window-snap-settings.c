@@ -4,15 +4,16 @@
 #include "window-snap-settings.h"
 
 static const struct program_configuration_key known_keys[] = {
-    {"snap",       "enabled"              },
-    {"snap",       "edge-zone-size"       },
-    {"snap",       "drag-threshold"       },
-    {"snap",       "floating-border-width"},
-    {"snap",       "tiled-border-width"   },
-    {"preview",    "opacity"              },
-    {"preview",    "show-labels"          },
-    {"appearance", "follow-sway-bar"      },
-    {NULL,         NULL                   },
+    {"snap",       "enabled"                },
+    {"snap",       "edge-zone-size"         },
+    {"snap",       "drag-threshold"         },
+    {"snap",       "floating-border-width"  },
+    {"snap",       "tiled-border-width"     },
+    {"preview",    "opacity"                },
+    {"preview",    "show-labels"            },
+    {"appearance", "follow-sway-bar"        },
+    {"layout",     "remove-redundant-groups"},
+    {NULL,         NULL                     },
 };
 
 /* A whole number setting: group, key, default, smallest and largest value. */
@@ -68,6 +69,12 @@ read_switches(
     settings->is_enabled       = program_configuration_file_read_boolean(configuration, "snap", "enabled", true);
     settings->shows_labels     = program_configuration_file_read_boolean(configuration, "preview", "show-labels", true);
     settings->follows_sway_bar = program_configuration_file_read_boolean(configuration, "appearance", "follow-sway-bar", true);
+    settings->removes_redundant_groups = program_configuration_file_read_boolean(
+        configuration,
+        "layout",
+        "remove-redundant-groups",
+        true
+    );
 }
 
 struct window_snap_settings *

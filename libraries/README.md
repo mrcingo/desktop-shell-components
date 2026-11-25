@@ -8,6 +8,7 @@ Each library does one job. A library only uses the ones above it.
 | `framed-message-stream`           | Length-prefixed messages over a socket                           |
 | `compositor-ipc-message-format`   | Encode and decode sway's IPC messages                            |
 | `compositor-ipc-client`           | Send IPC requests and receive replies and events                 |
+| `redundant-layout-wrapper-finder` | Containers whose only child is another container, such as T[foot thunar] |
 | `compositor-window-tree`          | Outputs, visible windows and focus order from sway's layout tree |
 | `window-focus-history`            | Windows ordered by when they last had focus                      |
 | `window-label-format`             | Labels such as `{name} {pid}` for windows                        |
