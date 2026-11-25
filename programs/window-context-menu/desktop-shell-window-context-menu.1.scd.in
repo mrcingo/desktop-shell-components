@@ -13,8 +13,8 @@ desktop-shell-window-context-menu - menu for a window, opened by right-clicking 
 *desktop-shell-window-context-menu* shows a menu for a window: its title,
 application, process ID and memory, then Close, End process (SIGTERM), Force
 close (SIGKILL), Pause and Resume process, copying the process ID, title,
-application name, command line or working directory, and Floating,
-Fullscreen, Sticky, Move to workspace and Move to scratchpad.
+application name, command line or working directory, Screenshot, and
+Floating, Fullscreen, Sticky, Move to workspace and Move to scratchpad.
 
 It opens when sway runs a binding that marks the window and names the
 program, as the installed configuration does for right-clicks on title bars:
@@ -29,6 +29,26 @@ for X11 windows, whose process ID belongs to the X server, and signals use a
 pidfd taken when the menu opens, so they never reach a process that reused
 the ID. After a package upgrade, *swaymsg reload* restarts the program from
 the new file.
+
+# SCREENSHOTS
+
+Screenshot captures the window's own content at full size through
+ext-image-copy-capture, after the menu has closed, so covering windows and
+the menu never show. The picture is copied to the clipboard (the program
+keeps running, so it stays pasteable) and saved as
+_Screenshot YYYY-MM-DD HHMMSS - Application.png_ in the Screenshots folder of
+the Pictures folder (_XDG_PICTURES_DIR_, else _~/Pictures_), with mode 0600.
+A file is never replaced: later ones in the same second end in _-2_, _-3_.
+Files are only written inside the home folder; a folder that resolves
+elsewhere through a symbolic link is refused. Failures are logged; nothing
+is shown.
+
+A binding can take the screenshot without the menu, as Alt+Print Screen
+does on Windows:
+
+```
+bindsym Mod1+Print mark --add _window-context-menu-target, nop desktop-shell-window-context-menu screenshot
+```
 
 # OPTIONS
 
@@ -57,6 +77,11 @@ optional; *swaymsg reload* applies changes.
 
 *[appearance]*
 	*follow-sway-bar* = _true_|_false_
+
+*[screenshot]*
+	*copy* = _true_|_false_++
+	*save* = _true_|_false_++
+	*folder* = a folder inside the home folder (_~/x_ or _x_); empty for Pictures/Screenshots
 
 # STYLING
 

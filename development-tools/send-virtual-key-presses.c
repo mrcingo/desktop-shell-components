@@ -7,6 +7,7 @@
  *   alt-up     release Alt (also shift-up, super-up)
  *   tab        press and release Tab
  *   escape     press and release Escape
+ *   print      press and release Print Screen
  *   wait       do nothing for one step
  *
  * Example, Alt+Tab twice then release: send-virtual-key-presses alt-down tab tab alt-up
@@ -36,6 +37,7 @@ enum {
     /* Linux input event codes, which Wayland key events carry. */
     KEY_CODE_ESCAPE     = 1,
     KEY_CODE_TAB        = 15,
+    KEY_CODE_PRINT      = 99, // KEY_SYSRQ, the Print Screen key
     KEY_CODE_LEFT_ALT   = 56,
     KEY_CODE_LEFT_SHIFT = 42,
     KEY_CODE_LEFT_SUPER = 125,
@@ -238,6 +240,14 @@ tap_tab(
 }
 
 static void
+tap_print(
+    struct virtual_typist *typist
+)
+{
+    tap_key(typist, KEY_CODE_PRINT);
+}
+
+static void
 tap_escape(
     struct virtual_typist *typist
 )
@@ -258,6 +268,7 @@ static const struct {
 } steps[] = {
     {"tab",    tap_tab   },
     {"escape", tap_escape},
+    {"print",  tap_print },
     {"wait",   do_nothing},
 };
 
