@@ -1,0 +1,8 @@
+# Starts the notification daemon with sway. Installed by
+# desktop-shell-notification-daemon into /etc/sway/config.d, which sway's
+# default configuration includes. Starting it again on reload is harmless:
+# a second copy exits at once. It shows nothing itself; the status line
+# shows the notifications. Settings are in
+# ~/.config/desktop-shell-components/notification-daemon.ini.
+
+exec_always @bindir@/desktop-shell-notification-daemon

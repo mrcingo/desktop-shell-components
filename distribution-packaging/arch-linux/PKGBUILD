@@ -11,6 +11,7 @@ pkgname=(
     desktop-shell-window-title-format
     desktop-shell-window-context-menu
     desktop-shell-system-status-line
+    desktop-shell-notification-daemon
 )
 pkgver=1.3.0
 pkgrel=1
@@ -161,4 +162,21 @@ package_desktop-shell-system-status-line() {
     _install_into_staging
     _take_program desktop-shell-system-status-line
     _take_files etc/xdg/desktop-shell-components/system-status-line.ini
+}
+
+package_desktop-shell-notification-daemon() {
+    pkgdesc='Notification server with sounds, shown in the status line'
+    depends=(desktop-shell-components-common glib2 glibc json-glib pipewire sway)
+    optdepends=('sound-theme-freedesktop: sounds that applications name')
+    provides=(notification-daemon)
+    backup=(
+        etc/sway/config.d/60-desktop-shell-notification-daemon.conf
+        etc/xdg/desktop-shell-components/notification-daemon.ini
+    )
+    install=desktop-shell-notification-daemon.install
+
+    _install_into_staging
+    _take_program desktop-shell-notification-daemon
+    _take_files usr/share/desktop-shell-components/notification-chime.wav usr/share/desktop-shell-components/notification-critical-chime.wav
+    _take_files etc/sway/config.d/60-desktop-shell-notification-daemon.conf etc/xdg/desktop-shell-components/notification-daemon.ini
 }

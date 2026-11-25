@@ -17,6 +17,12 @@ Each library does one job. A library only uses the ones above it.
 | `rendered-text-width-measurement` | How wide text is in pixels in a Pango font                       |
 | `window-title-format-command`     | The command that sets a window's title bar text                  |
 | `window-title-fitting`            | Shorten a title so the title bar text fits                       |
+| `notification-request`            | Check and clean a notification another program sent             |
+| `notification-store`              | Recent notifications: IDs, replacement, unread                   |
+| `notification-sound-player`       | Play a notification sound without blocking, at most so often     |
+| `process-window-lookup`           | The window of a process, its parent or its child                 |
+| `process-window-focusing`         | Bring up the window of a process                                 |
+| `notification-specification-server` | The notification server on D-Bus, and its status bar interface |
 | `process-information-snapshot`    | A process's command line, directory, memory and state from /proc |
 | `process-signal-handle`           | Signal exactly the process a menu was opened for (pidfd)         |
 | `window-context-menu-target`      | The window and process a window menu acts on                     |
@@ -42,6 +48,7 @@ Each library does one job. A library only uses the ones above it.
 | `login-form-widget`               | The login form: username, password, session, questions           |
 | `program-command-line`            | The `--style` option every program accepts                       |
 | `program-configuration-file`      | Read optional INI settings, warning about mistakes               |
+| `notification-rules`              | Per-application notification settings and sound decisions       |
 | `software-rendering-preference`   | Use GTK's lighter renderer for small interfaces                  |
 | `single-instance-lock`            | Let only one copy of a program run per display                   |
 | `replaced-executable-restart`     | Restart a program whose file an upgrade replaced                 |
