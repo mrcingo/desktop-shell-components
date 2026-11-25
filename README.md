@@ -14,6 +14,7 @@ colors and font from your sway bar, or from your GTK theme.
 | [window bar](programs/workspace-window-bar)              | the windows of the current workspace, at the bottom |
 | [window switcher](programs/window-switcher)              | Alt+Tab with live previews                        |
 | [window title format](programs/window-title-format)     | the process ID in each window's title bar         |
+| [application style export](programs/application-style-export) | the shared look for GTK apps, lock screen, prompts |
 | [window menu](programs/window-context-menu)              | right-click a title bar: force close, copy PID... |
 | [tray click window focus](programs/tray-click-window-focus) | clicking a tray icon brings up its window       |
 | [system status line](programs/system-status-line)       | network, battery, CPU, memory and more in the bar |

@@ -12,6 +12,7 @@ install_data(
     'default-settings/system-status-line.ini',
     'default-settings/notification-daemon.ini',
     'default-settings/window-switcher.ini',
+    'default-settings/application-style-export.ini',
     'default-settings/window-context-menu.ini',
     'default-settings/tray-click-window-focus.ini',
     'default-settings/window-title-format.ini',
@@ -27,3 +28,11 @@ custom_target(
     install: true,
     install_dir: shared_data_directory,
 )
+
+# A system policy changes behaviour for every user, so it is installed only on request.
+if get_option('drive-mount-policy')
+    install_data(
+        'system-policies/50-desktop-shell-drive-mount-policy.rules',
+        install_dir: get_option('datadir') / 'polkit-1' / 'rules.d',
+    )
+endif

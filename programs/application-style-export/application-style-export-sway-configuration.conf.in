@@ -1,0 +1,8 @@
+# Gives other programs the shared look on every sway start and reload:
+# GTK applications, the lock screen and sway's prompt bar. Installed by
+# desktop-shell-application-style-export into /etc/sway/config.d, which
+# sway's default configuration includes. It runs once and exits. Turn it
+# off with "enabled = false" in
+# ~/.config/desktop-shell-components/application-style-export.ini.
+
+exec_always @bindir@/desktop-shell-application-style-export

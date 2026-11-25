@@ -1,0 +1,4 @@
+post_install() {
+    echo ':: Mounting drives now asks for an administrator password. In a terminal:'
+    echo '::   udisksctl mount -b /dev/sdX1'
+}

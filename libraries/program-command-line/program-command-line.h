@@ -22,6 +22,22 @@ bool program_command_line_parse(
     struct program_command_line_options *options
 );
 
+/* A program's own on/off option, such as --print-launcher-arguments. */
+struct program_command_line_flag {
+    const char *long_name; // without the leading "--"
+    const char *description;
+    bool       *is_given; // set to true when the option is on the command line
+};
+
+/* As program_command_line_parse, plus the program's own flags, a list ending with {NULL}. */
+bool program_command_line_parse_with_flags(
+    int                                    *argument_count,
+    char                                 ***arguments,
+    const char                             *program_summary,
+    struct program_command_line_options    *options,
+    const struct program_command_line_flag *flags
+);
+
 void program_command_line_options_clear(struct program_command_line_options *options);
 
 #endif

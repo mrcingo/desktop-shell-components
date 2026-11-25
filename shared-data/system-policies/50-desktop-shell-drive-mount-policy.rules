@@ -1,0 +1,13 @@
+// Installed by desktop-shell-drive-mount-policy.
+//
+// Mounting, unlocking or formatting drives through udisks2 (which file
+// managers use, through gvfs) asks for an administrator's password every
+// time, instead of being allowed without one for whoever is logged in.
+// gvfs's other features, such as the Trash, keep working. Uninstall the
+// package to return to udisks2's own rules.
+
+polkit.addRule(function (action, subject) {
+    if (action.id.indexOf("org.freedesktop.udisks2.") === 0) {
+        return polkit.Result.AUTH_ADMIN;
+    }
+});

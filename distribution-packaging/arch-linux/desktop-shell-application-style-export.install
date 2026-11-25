@@ -1,0 +1,4 @@
+post_install() {
+    echo ':: Run: swaymsg reload'
+    echo ':: Your own ~/.config/gtk-3.0/gtk.css or gtk-4.0/gtk.css, if any, is left as it is.'
+}

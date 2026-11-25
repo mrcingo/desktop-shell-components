@@ -47,3 +47,15 @@ executable(
     ],
     build_by_default: false,
 )
+
+# Looks at the generated GTK 3 style sheet, when GTK 3 is installed.
+toolkit_3_dependency = dependency('gtk+-3.0', required: false)
+
+if toolkit_3_dependency.found()
+    executable(
+        'preview-toolkit-3-widgets',
+        'preview-toolkit-3-widgets.c',
+        dependencies: toolkit_3_dependency,
+        build_by_default: false,
+    )
+endif

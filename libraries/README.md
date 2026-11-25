@@ -29,6 +29,12 @@ Each library does one job. A library only uses the ones above it.
 | `window-context-menu-target`      | The window and process a window menu acts on                     |
 | `compositor-state-tracker`        | Keep the window tree and focus history current                   |
 | `compositor-bar-appearance`       | Read the sway bar's colors and font                              |
+| `theme-palette`                   | The shared look as plain colors and a font                       |
+| `toolkit-style-sheet-writer`      | GTK 3 and GTK 4 user style sheets in the shared look             |
+| `utility-program-style-writer`    | Lock screen, prompt bar and launcher settings in the shared look |
+| `managed-file-writing`            | Keep files in ~/.config current without overwriting the user's   |
+| `established-theme-reading`       | The shared look from defaults, the sway bar and shared-theme.css |
+| `desktop-interface-settings`      | The desktop color scheme and font in GSettings                   |
 | `window-context-menu-actions`     | Close, kill, pause, copy and move actions of the window menu     |
 | `window-context-menu-popover`     | The window menu shown on right-click                             |
 | `login-daemon-protocol`           | Encode greetd requests and decode its replies                    |

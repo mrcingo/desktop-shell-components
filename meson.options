@@ -1,2 +1,8 @@
 option('manual-pages', type: 'feature', value: 'auto',
     description: 'Generate and install manual pages')
+option(
+    'drive-mount-policy',
+    type: 'boolean',
+    value: false,
+    description: 'Install the polkit rule that makes mounting drives through udisks2 ask for an administrator password',
+)

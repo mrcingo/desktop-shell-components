@@ -9,6 +9,8 @@ pkgname=(
     desktop-shell-workspace-window-bar
     desktop-shell-window-switcher
     desktop-shell-window-title-format
+    desktop-shell-application-style-export
+    desktop-shell-drive-mount-policy
     desktop-shell-window-context-menu
     desktop-shell-system-status-line
     desktop-shell-notification-daemon
@@ -31,7 +33,7 @@ sha256sums=('SKIP')
 build() {
     # A staging tree left by an earlier build would hide this build's files.
     rm -rf "$srcdir/staging"
-    arch-meson "$pkgbase" build -Dmanual-pages=enabled
+    arch-meson "$pkgbase" build -Dmanual-pages=enabled -Ddrive-mount-policy=true
     meson compile -C build
 }
 
@@ -195,4 +197,34 @@ package_desktop-shell-tray-click-window-focus() {
     _take_program desktop-shell-tray-click-window-focus
     _take_files etc/sway/config.d/60-desktop-shell-tray-click-window-focus.conf
     _take_files etc/xdg/desktop-shell-components/tray-click-window-focus.ini
+}
+
+package_desktop-shell-application-style-export() {
+    pkgdesc='Gives GTK applications, the lock screen and prompts the shared look'
+    depends=(glib2 glibc json-glib sway)
+    optdepends=(
+        'gsettings-desktop-schemas: color scheme and font for libadwaita and Chromium-based programs'
+        'swaylock: styled lock screen'
+    )
+    backup=(
+        etc/sway/config.d/60-desktop-shell-application-style-export.conf
+        etc/xdg/desktop-shell-components/application-style-export.ini
+    )
+    install=desktop-shell-application-style-export.install
+
+    _install_into_staging
+    _take_program desktop-shell-application-style-export
+    _take_files etc/sway/config.d/60-desktop-shell-application-style-export.conf
+    _take_files etc/xdg/desktop-shell-components/application-style-export.ini
+}
+
+package_desktop-shell-drive-mount-policy() {
+    pkgdesc='Mounting drives through udisks2 asks for an administrator password'
+    arch=(any)
+    depends=(polkit)
+    install=desktop-shell-drive-mount-policy.install
+
+    _install_into_staging
+    _take_files usr/share/polkit-1/rules.d/50-desktop-shell-drive-mount-policy.rules
+    _take_license
 }

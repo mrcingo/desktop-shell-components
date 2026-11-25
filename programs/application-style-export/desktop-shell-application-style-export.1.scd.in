@@ -1,0 +1,68 @@
+desktop-shell-application-style-export(1)
+
+# NAME
+
+desktop-shell-application-style-export - gives other programs the shared look
+
+# SYNOPSIS
+
+*desktop-shell-application-style-export* [*-c* _FILE_] [*--print-launcher-arguments*]
+
+# DESCRIPTION
+
+*desktop-shell-application-style-export* reads the established look - the
+shipped defaults, then the colors and font of the sway bar found through
+_$SWAYSOCK_, then the variables in
+_$XDG_CONFIG_HOME/desktop-shell-components/shared-theme.css_ - writes it into
+other programs' per-user style files and exits:
+
+- _gtk-3.0/gtk.css_: a complete, flat style for GTK 3 applications;
+- _gtk-4.0/gtk.css_: named colors and libadwaita color variables only, since
+  a user style sheet outranks every program's own;
+- the _gtk-application-prefer-dark-theme_ and _gtk-font-name_ keys of
+  _gtk-3.0/settings.ini_ and _gtk-4.0/settings.ini_, keeping the others;
+- _swaylock/config_ and _swaynag/config_;
+- the GSettings keys _color-scheme_ and _font-name_ of
+  _org.gnome.desktop.interface_, when that schema is installed.
+
+All paths are inside _$XDG_CONFIG_HOME_. A file is written only when it does
+not exist or its first line is this program's marker; delete the marker
+line to keep a file as your own. Files are replaced atomically, with mode
+0644, never through a symbolic link or a linked folder leading outside
+_$XDG_CONFIG_HOME_, and only when their contents change. No privilege is
+needed or used.
+
+# OPTIONS
+
+*-h, --help*
+	Show the help message and exit.
+
+*-c, --config* _FILE_
+	Read settings from _FILE_ instead of the usual places.
+
+*-s, --style* _FILE_
+	Accepted like by every component; unused.
+
+*--print-launcher-arguments*
+	Print the font and color options of the *wmenu* launcher, shell-quoted,
+	instead of writing files.
+
+# CONFIGURATION
+
+The installed _@sysconfdir@/sway/config.d/60-desktop-shell-application-style-export.conf_
+runs the program on every sway start and reload.
+
+# SETTINGS
+
+Read from _$XDG_CONFIG_HOME/desktop-shell-components/application-style-export.ini_,
+else _/etc/xdg/desktop-shell-components/application-style-export.ini_. All
+are optional.
+
+*[export]*
+	*enabled* = _true_|_false_++
+	*gtk3*, *gtk4*, *gtk-settings*, *gsettings*, *lock-screen*, *prompts* = _true_|_false_++
+	*color-scheme* = _auto_|_dark_|_light_
+
+# SEE ALSO
+
+*sway*(5), *swaylock*(1), *swaynag*(5), *wmenu*(1)
