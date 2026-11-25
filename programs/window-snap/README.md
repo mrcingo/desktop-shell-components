@@ -13,8 +13,28 @@ quarter, as on Windows):
     bindsym Mod4+Right nop desktop-shell-window-snap right
     bindsym Mod4+Up    nop desktop-shell-window-snap up
     bindsym Mod4+Down  nop desktop-shell-window-snap down
+    bindsym Mod4+Shift+Left  nop desktop-shell-window-snap monitor-left
+    bindsym Mod4+Shift+Right nop desktop-shell-window-snap monitor-right
+
+As on Windows:
+
+- Win+Left/Right snap to a half; Win+Up then makes a quarter, Win+Down goes
+  back to the half; Win+Up on a free window maximizes, Win+Down restores.
+- On a window already against an edge, Win+Left/Right carries it to the
+  monitor on that side (left half becomes that monitor's right half). On
+  the last monitor it stays.
+- Win+Right on a left half (or Left on a right half) restores the window.
+- Win+Down on a free window does nothing: sway has no minimizing.
+- Win+Shift+Left/Right moves the window to the monitor on that side,
+  keeping its snapped shape, or its size and relative place.
+- A fullscreen window leaves fullscreen first.
+- A snapped window moved by hand is free again: the next Win+Up maximizes.
+- Restoring puts the window back where it was; if that monitor is gone, on
+  the monitor it is on now.
 
 `left-half`, `right-half`, `maximize` and `restore` jump straight there.
+Keys typed quickly are handled one after the other; a key that would
+change nothing sends nothing to sway.
 
 ## Optional: snapping title bars
 
@@ -49,12 +69,29 @@ Optional. In `~/.config/desktop-shell-components/window-snap.ini`:
 | `drag-threshold` in `[snap]`        | pixels, 1 to 100   | `8`     |
 | `floating-border-width` in `[snap]` | 0 to 50            | `6`     |
 | `tiled-border-width` in `[snap]`    | 0 to 50            | `2`     |
+| `fit-new-windows` in `[snap]`       | `true`, `false`    | `true`  |
+| `cascade-new-windows` in `[snap]`   | `true`, `false`    | `true`  |
+| `bring-back-off-screen-windows` in `[snap]` | `true`, `false` | `true` |
 | `opacity` in `[preview]`            | percent            | `30`    |
 | `show-labels` in `[preview]`        | `true`, `false`    | `true`  |
 | `follow-sway-bar` in `[appearance]` | `true`, `false`    | `true`  |
 
 Apply with `swaymsg reload`. With `enabled = false` title bars behave as
 sway's own again.
+
+## New windows and windows out of reach
+
+As on Windows, a floating window that opens bigger than its monitor is
+shrunk to fit, and one that opens exactly over another (every terminal
+opens centred at the same size) moves 32 pixels down and right, starting
+again at the top left when it would leave the screen. This happens once,
+when the window opens; windows moved since are never touched.
+
+When a monitor goes away or changes, every floating window not fully on a
+monitor is brought fully onto the nearest one, also on hidden workspaces.
+After any other key binding, a window whose title bar cannot be reached is
+brought back; a window parked half off screen stays. sway reports no
+drags, so nothing is ever pulled from under a dragging pointer.
 
 ## Tidy layouts
 

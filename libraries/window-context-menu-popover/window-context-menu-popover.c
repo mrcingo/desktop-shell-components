@@ -9,13 +9,14 @@ enum {
     WORKSPACE_MENU_SIZE       = 10,
 };
 
-struct open_menu {
+struct window_context_menu_popover {
     GtkWidget                                        *popover;
     GActionGroup                                     *actions;
     bool                                              screenshot_requested;
     struct window_context_menu_target                *target;
     const struct window_context_menu_popover_handler *handler;
     void                                             *user_data;
+    GdkRectangle                                      pointing_to;
 };
 
 /* Placeholders that add_header_labels fills with labels, which cannot be clicked or focused. */
@@ -260,7 +261,7 @@ create_menu_model(void)
 
 static void
 report_menu_closed(
-    const struct open_menu *menu
+    const struct window_context_menu_popover *menu
 )
 {
     if (menu->handler == NULL) {
@@ -290,10 +291,14 @@ remove_from_parent(
 /* The popover is already off screen, so the screenshot never shows the menu. */
 static void
 report_screenshot_requested(
-    const struct open_menu *menu
+    const struct window_context_menu_popover *menu
 )
 {
     if (!menu->screenshot_requested) {
+        return;
+    }
+
+    if (menu->handler == NULL) {
         return;
     }
 
@@ -302,7 +307,7 @@ report_screenshot_requested(
 
 static void
 release_menu(
-    struct open_menu *menu
+    struct window_context_menu_popover *menu
 )
 {
     window_context_menu_target_destroy(menu->target);
@@ -317,7 +322,7 @@ remove_closed_menu(
     gpointer user_data
 )
 {
-    struct open_menu *menu = user_data;
+    struct window_context_menu_popover *menu = user_data;
 
     remove_from_parent(menu->popover);
     report_screenshot_requested(menu);
@@ -374,7 +379,7 @@ handle_screenshot_chosen(
     gpointer       user_data
 )
 {
-    struct open_menu *menu = user_data;
+    struct window_context_menu_popover *menu = user_data;
 
     menu->screenshot_requested = true;
 }
@@ -394,7 +399,7 @@ can_report_screenshots(
 /* Without anyone to take the screenshot, the item stays disabled. */
 static void
 watch_screenshot_action(
-    struct open_menu *menu
+    struct window_context_menu_popover *menu
 )
 {
     GAction *screenshot_action = g_action_map_lookup_action(G_ACTION_MAP(menu->actions), "screenshot");
@@ -407,7 +412,124 @@ watch_screenshot_action(
     g_signal_connect(screenshot_action, "activate", G_CALLBACK(handle_screenshot_chosen), menu);
 }
 
-void
+static bool
+closes_on_outside_clicks(
+    const struct window_context_menu_popover_handler *handler
+)
+{
+    if (handler == NULL) {
+        return true;
+    }
+
+    return !handler->parent_handles_outside_clicks;
+}
+
+static int
+measure_natural_height(
+    GtkWidget *widget
+)
+{
+    int natural_height = 0;
+
+    gtk_widget_measure(widget, GTK_ORIENTATION_VERTICAL, -1, NULL, &natural_height, NULL, NULL);
+
+    return natural_height;
+}
+
+/* GTK opens a menu above the pointed place by itself when it fits there. */
+static bool
+fits_neither_below_nor_above(
+    const GdkRectangle *pointing_to,
+    int                 menu_height,
+    int                 parent_height
+)
+{
+    if (pointing_to->y + pointing_to->height + menu_height <= parent_height) {
+        return false;
+    }
+
+    return pointing_to->y < menu_height;
+}
+
+/*
+ * GTK opens a menu that fits neither below nor above the pointed place below
+ * it anyway, shrunk to a scrolling list cut at the monitor's bottom. Windows
+ * moves such a menu up until all of it shows; so does this, once the menu has
+ * its real height, which it has from its first frame on.
+ */
+static void
+move_menu_up(
+    GtkWidget          *popover,
+    const GdkRectangle *pointing_to,
+    int                 menu_height,
+    int                 parent_height
+)
+{
+    GdkRectangle moved_up = *pointing_to;
+
+    moved_up.y = MAX(0, parent_height - menu_height - moved_up.height);
+
+    g_debug("menu moved up to fit: %d pixels from the top", moved_up.y);
+    gtk_popover_set_pointing_to(GTK_POPOVER(popover), &moved_up);
+}
+
+static gboolean
+move_menu_up_to_fit(
+    GtkWidget     *popover,
+    GdkFrameClock *frame_clock,
+    gpointer       user_data
+)
+{
+    const struct window_context_menu_popover *menu          = user_data;
+    int                                       menu_height   = measure_natural_height(popover);
+    int                                       parent_height = gtk_widget_get_height(gtk_widget_get_parent(popover));
+
+    if (fits_neither_below_nor_above(&menu->pointing_to, menu_height, parent_height)) {
+        move_menu_up(popover, &menu->pointing_to, menu_height, parent_height);
+    }
+
+    return G_SOURCE_REMOVE;
+}
+
+static void
+fit_menu_on_first_frame(
+    GtkWidget *popover,
+    gpointer   user_data
+)
+{
+    gtk_widget_add_tick_callback(popover, move_menu_up_to_fit, user_data, NULL);
+}
+
+static void
+keep_menu_inside_parent_if_asked(
+    struct window_context_menu_popover *menu
+)
+{
+    if (menu->handler == NULL) {
+        return;
+    }
+
+    if (!menu->handler->keeps_menu_inside_parent) {
+        return;
+    }
+
+    g_signal_connect(menu->popover, "map", G_CALLBACK(fit_menu_on_first_frame), menu);
+}
+
+/* Everything about the menu's behavior, set before it first shows. */
+static void
+prepare_menu(
+    struct window_context_menu_popover *menu
+)
+{
+    watch_screenshot_action(menu);
+    g_signal_connect(menu->popover, "closed", G_CALLBACK(handle_popover_closed), menu);
+    gtk_popover_set_pointing_to(GTK_POPOVER(menu->popover), &menu->pointing_to);
+    gtk_popover_set_autohide(GTK_POPOVER(menu->popover), closes_on_outside_clicks(menu->handler));
+    keep_menu_inside_parent_if_asked(menu);
+}
+
+struct window_context_menu_popover *
 window_context_menu_popover_show(
     GtkWidget                                        *parent,
     const GdkRectangle                               *pointing_to,
@@ -417,20 +539,37 @@ window_context_menu_popover_show(
     void                                             *user_data
 )
 {
-    struct open_menu *menu    = g_new0(struct open_menu, 1);
-    GActionGroup     *actions = window_context_menu_actions_create(target, ipc_client, gtk_widget_get_clipboard(parent));
+    struct window_context_menu_popover *menu    = g_new0(struct window_context_menu_popover, 1);
+    GActionGroup                       *actions = window_context_menu_actions_create(target, ipc_client, gtk_widget_get_clipboard(parent));
 
     /* Held until the menu is removed, even if the parent goes first. */
-    *menu = (struct open_menu){
-        .popover   = g_object_ref(create_popover(parent, target, actions)),
-        .actions   = actions,
-        .target    = target,
-        .handler   = handler,
-        .user_data = user_data,
+    *menu = (struct window_context_menu_popover){
+        .popover     = g_object_ref(create_popover(parent, target, actions)),
+        .actions     = actions,
+        .target      = target,
+        .handler     = handler,
+        .user_data   = user_data,
+        .pointing_to = *pointing_to,
     };
 
-    watch_screenshot_action(menu);
-    g_signal_connect(menu->popover, "closed", G_CALLBACK(handle_popover_closed), menu);
-    gtk_popover_set_pointing_to(GTK_POPOVER(menu->popover), pointing_to);
+    prepare_menu(menu);
     gtk_popover_popup(GTK_POPOVER(menu->popover));
+
+    return menu;
+}
+
+void
+window_context_menu_popover_stop_reporting(
+    struct window_context_menu_popover *menu
+)
+{
+    menu->handler = NULL;
+}
+
+void
+window_context_menu_popover_close(
+    struct window_context_menu_popover *menu
+)
+{
+    gtk_popover_popdown(GTK_POPOVER(menu->popover));
 }

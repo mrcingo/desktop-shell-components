@@ -1,3 +1,5 @@
+#include <inttypes.h>
+
 #include <gtk/gtk.h>
 
 #include "compositor-matched-appearance.h"
@@ -20,8 +22,11 @@ struct window_context_menu_application {
     struct compositor_state_tracker      *compositor_state;
     struct window_context_menu_settings  *settings;
     struct compositor_matched_appearance *appearance;
-    struct window_context_menu_overlay   *overlay; // NULL while no menu is open
+    struct window_context_menu_overlay   *overlay;        // NULL while no menu is open
     struct window_screenshot_capturing   *screenshot_capturing;
+    int64_t                               menu_window_id; // the window the open menu is for
+    int                                   menu_origin_x;  // top-left corner of its monitor, in layout pixels
+    int                                   menu_origin_y;
     bool                                  menu_requested;
     bool                                  screenshot_requested;
 };
@@ -34,14 +39,152 @@ ipc_client_of(
     return compositor_state_tracker_get_ipc_client(menu_program->compositor_state);
 }
 
+static void show_menu(
+    struct window_context_menu_application *menu_program,
+    const struct compositor_window_tree    *tree,
+    const struct compositor_window         *window
+);
+
+static bool
+is_within(
+    int value,
+    int start,
+    int length
+)
+{
+    if (value < start) {
+        return false;
+    }
+
+    return value < start + length;
+}
+
+/* The band of border along the sides and bottom, at least a pixel wide. */
+static bool
+is_on_border(
+    const struct compositor_window *window,
+    int                             x,
+    int                             y
+)
+{
+    int band = MAX(window->border_width, 1);
+
+    if (x < window->content_x + band) {
+        return true;
+    }
+
+    if (x >= window->content_x + window->content_width - band) {
+        return true;
+    }
+
+    return y >= window->content_y + window->content_height - band;
+}
+
+/* Where right-clicks open the menu: the title bar and the border, as the compositor's binding does. */
+static bool
+has_menu_handle_at(
+    const struct compositor_window *window,
+    int                             x,
+    int                             y
+)
+{
+    int top = window->content_y - window->title_bar_height;
+
+    if (!is_within(x, window->content_x, window->content_width)) {
+        return false;
+    }
+
+    if (!is_within(y, top, window->content_y + window->content_height - top)) {
+        return false;
+    }
+
+    return y < window->content_y || is_on_border(window, x, y);
+}
+
+/* The topmost window with its title bar or border at the point; floating windows come last, on top. */
+static const struct compositor_window *
+find_window_handle_on_output(
+    const struct compositor_output *output,
+    int                             x,
+    int                             y
+)
+{
+    for (guint i = output->windows_on_visible_workspace->len; i > 0; i--) {
+        const struct compositor_window *window = g_ptr_array_index(output->windows_on_visible_workspace, i - 1);
+
+        if (has_menu_handle_at(window, x, y)) {
+            return window;
+        }
+    }
+
+    return NULL;
+}
+
+static const struct compositor_window *
+find_window_handle_at(
+    const struct compositor_window_tree *tree,
+    int                                  x,
+    int                                  y
+)
+{
+    for (guint i = 0; i < tree->outputs->len; i++) {
+        const struct compositor_window *window = find_window_handle_on_output(g_ptr_array_index(tree->outputs, i), x, y);
+
+        if (window != NULL) {
+            return window;
+        }
+    }
+
+    return NULL;
+}
+
+/* A right-click outside an open menu, on another title bar or border, opens that window's menu, as on Windows. */
+static void
+reopen_menu_for_click(
+    struct window_context_menu_application         *menu_program,
+    const struct window_context_menu_outside_click *click
+)
+{
+    const struct compositor_window_tree *tree   = compositor_state_tracker_get_window_tree(menu_program->compositor_state);
+    int                                  x      = menu_program->menu_origin_x + click->x;
+    int                                  y      = menu_program->menu_origin_y + click->y;
+    const struct compositor_window      *window = find_window_handle_at(tree, x, y);
+
+    if (window != NULL) {
+        show_menu(menu_program, tree, window);
+    }
+}
+
+/* No mouse button, when the menu closed without a click outside it. */
+static struct window_context_menu_outside_click
+copy_outside_click(
+    const struct window_context_menu_outside_click *click
+)
+{
+    if (click == NULL) {
+        return (struct window_context_menu_outside_click){0};
+    }
+
+    return *click;
+}
+
 static void
 handle_menu_closed(
-    void *user_data
+    void                                           *user_data,
+    const struct window_context_menu_outside_click *click
 )
 {
     struct window_context_menu_application *menu_program = user_data;
 
+    /* The click belongs to the overlay, which goes away here. */
+    struct window_context_menu_outside_click kept_click = copy_outside_click(click);
+
+    g_debug("menu closed");
     g_clear_pointer(&menu_program->overlay, window_context_menu_overlay_destroy);
+
+    if (kept_click.mouse_button == GDK_BUTTON_SECONDARY) {
+        reopen_menu_for_click(menu_program, &kept_click);
+    }
 }
 
 /* The window's own content: covering windows and the menu never show. */
@@ -104,6 +247,20 @@ place_menu_below_title_bar(
     return (GdkRectangle){window->content_x - output->output_x, window->content_y - output->output_y, 1, 1};
 }
 
+static void
+remember_menu_origin(
+    struct window_context_menu_application *menu_program,
+    const struct compositor_output         *output
+)
+{
+    if (output == NULL) {
+        return;
+    }
+
+    menu_program->menu_origin_x = output->output_x;
+    menu_program->menu_origin_y = output->output_y;
+}
+
 /* The menu opens on the monitor showing the window, which is where the click was. */
 static void
 show_menu(
@@ -116,8 +273,12 @@ show_menu(
     GdkRectangle                    menu_position = place_menu_below_title_bar(output, window);
 
     g_clear_pointer(&menu_program->overlay, window_context_menu_overlay_destroy);
+    g_debug("menu opened for window %" PRId64, window->container_id);
 
-    menu_program->overlay = window_context_menu_overlay_show(
+    remember_menu_origin(menu_program, output);
+
+    menu_program->menu_window_id = window->container_id;
+    menu_program->overlay        = window_context_menu_overlay_show(
         menu_program->gtk_application,
         find_monitor(output),
         window_context_menu_target_create(window, "/proc"),
@@ -202,14 +363,36 @@ handle_requested_menu(
     open_menu_for_marked_window(menu_program, tree);
 }
 
+/* A menu for a window that has closed meanwhile has nothing left to act on. */
+static void
+close_menu_of_closed_window(
+    struct window_context_menu_application *menu_program,
+    const struct compositor_window_tree    *tree
+)
+{
+    if (menu_program->overlay == NULL) {
+        return;
+    }
+
+    if (compositor_window_tree_find_window(tree, menu_program->menu_window_id) != NULL) {
+        return;
+    }
+
+    g_debug("menu closed: its window is gone");
+    g_clear_pointer(&menu_program->overlay, window_context_menu_overlay_destroy);
+}
+
 static void
 handle_window_tree_updated(
     void                                *user_data,
     const struct compositor_window_tree *tree
 )
 {
-    handle_requested_screenshot(user_data, tree);
-    handle_requested_menu(user_data, tree);
+    struct window_context_menu_application *menu_program = user_data;
+
+    close_menu_of_closed_window(menu_program, tree);
+    handle_requested_screenshot(menu_program, tree);
+    handle_requested_menu(menu_program, tree);
 }
 
 /* A binding's command is a list such as "mark --add X, nop Y"; any part may match. */

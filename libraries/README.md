@@ -20,6 +20,7 @@ Each library does one job. A library only uses the ones above it.
 | `window-title-fitting`            | Shorten a title so the title bar text fits                       |
 | `window-snap-placement`           | Where a dragged window lands, and the command that puts it there |
 | `window-snap-keyboard-steps`      | Windows-like snapping with the arrow keys, step by step          |
+| `floating-window-arrangement`     | Fit new windows, cascade them, bring back windows off screen     |
 | `notification-request`            | Check and clean a notification another program sent             |
 | `notification-store`              | Recent notifications: IDs, replacement, unread                   |
 | `notification-sound-player`       | Play a notification sound without blocking, at most so often     |

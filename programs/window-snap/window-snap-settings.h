@@ -18,6 +18,9 @@ struct window_snap_settings {
     bool shows_labels;
     bool follows_sway_bar;
     bool removes_redundant_groups; // tab groups holding only another group
+    bool fits_new_windows;         // new windows bigger than the screen are shrunk to it
+    bool cascades_new_windows;     // new windows over another one move down and right
+    bool brings_back_windows;      // windows whose title bar cannot be reached come back
 };
 
 /* override_path is the --config file, or NULL. */

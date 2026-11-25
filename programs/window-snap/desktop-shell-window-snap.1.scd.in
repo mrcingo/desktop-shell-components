@@ -64,7 +64,29 @@ bindsym Mod4+Left  nop desktop-shell-window-snap left
 bindsym Mod4+Right nop desktop-shell-window-snap right
 bindsym Mod4+Up    nop desktop-shell-window-snap up
 bindsym Mod4+Down  nop desktop-shell-window-snap down
+bindsym Mod4+Shift+Left  nop desktop-shell-window-snap monitor-left
+bindsym Mod4+Shift+Right nop desktop-shell-window-snap monitor-right
 ```
+
+On a window against an edge, *left* or *right* carries it to the monitor on
+that side, as the mirrored shape there; on the last monitor it stays.
+*monitor-left* and *monitor-right* move the window to the monitor on that
+side, keeping its snapped shape, or its size and relative place. *down* on a
+free window does nothing, as there is no minimizing. A fullscreen window
+leaves fullscreen first. A snapped window moved by hand counts as free
+again. Each word waits for a fresh window tree, as floating windows move
+without the compositor reporting it; words typed quickly are handled in
+turn, and a word that changes nothing sends no command.
+
+# NEW WINDOWS AND WINDOWS OUT OF REACH
+
+A floating window that opens bigger than its monitor is shrunk to fit
+(*fit-new-windows*); one that opens exactly over another moves 32 pixels
+down and right (*cascade-new-windows*). This happens once, 150 ms after the
+window opens, when its size has settled. When monitors change, every
+floating window not fully on a monitor is brought fully onto the nearest
+one; after any other key binding, only a window whose title bar cannot be
+reached is (*bring-back-off-screen-windows*).
 
 # OPTIONS
 
