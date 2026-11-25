@@ -1,0 +1,5 @@
+post_install() {
+    echo ':: In the bar { } block of your sway configuration, set:'
+    echo '::   status_command desktop-shell-system-status-line'
+    echo ':: Then run: swaymsg reload'
+}

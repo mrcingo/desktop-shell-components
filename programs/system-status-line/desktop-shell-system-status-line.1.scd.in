@@ -1,0 +1,81 @@
+desktop-shell-system-status-line(1)
+
+# NAME
+
+desktop-shell-system-status-line - status line for the sway bar
+
+# SYNOPSIS
+
+*desktop-shell-system-status-line* [*-c* _FILE_]
+
+# DESCRIPTION
+
+*desktop-shell-system-status-line* is a status command for *swaybar*(5). It
+writes the status line protocol (*swaybar-protocol*(7)) to standard output
+and reads the bar's click events from standard input. It ends when the bar
+closes either.
+
+Blocks: network and internet reachability (NetworkManager), traffic of the
+main connection, Bluetooth (BlueZ), processor use, processor temperature,
+memory, disk space, volume (PulseAudio protocol, as served by PipeWire),
+brightness, power profile (power-profiles-daemon), battery (UPower),
+keyboard layout (from the compositor through _$SWAYSOCK_) and clock. A block
+whose source is missing is hidden.
+
+Services report their changes; processor, temperature, memory, disk,
+traffic and brightness are read on a timer at each block's interval. A line
+is only written when it differs from the last one, and the clock wakes only
+when the shown time changes.
+
+# OPTIONS
+
+*-h, --help*
+	Show the help message and exit.
+
+*-c, --config* _FILE_
+	Read settings from _FILE_ instead of the usual places.
+
+*-s, --style* _FILE_
+	Accepted like by every component; unused, as the bar draws the text.
+
+# CONFIGURATION
+
+In the *bar* block of the sway configuration:
+
+```
+status_command desktop-shell-system-status-line
+```
+
+# SETTINGS
+
+Read from _$XDG_CONFIG_HOME/desktop-shell-components/system-status-line.ini_,
+else _@sysconfdir@/xdg/desktop-shell-components/system-status-line.ini_, which
+lists every setting with its default. All are optional; *swaymsg reload*
+restarts the status command and applies changes.
+
+*[status]*
+	*blocks* = block names, left to right++
+	*text-color*, *warning-color* = _#rrggbb_++
+	*separator-width* = _0-100_++
+	*pad-numbers* = _true_|_false_
+
+Each block has a group named after it (*network*, *traffic*, *bluetooth*,
+*processor*, *temperature*, *memory*, *disk*, *volume*, *brightness*,
+*power-profile*, *battery*, *keyboard-layout*, *clock*) with:
+
+	*format*, *format-*_STATE_ = text with *{placeholders}* and Pango markup++
+	*warning*, *urgent* = thresholds; _-1_ turns one off++
+	*interval* = seconds, for blocks read on a timer++
+	*left-click*, *middle-click*, *right-click*, *scroll-up*, *scroll-down* =
+	a built-in action (*toggle-mute*, *volume-up*, *volume-down*,
+	*brightness-up*, *brightness-down*, *next-power-profile*,
+	*toggle-bluetooth*, *toggle-format*), a command run without a shell, or
+	nothing
+
+Also *[disk] path*, *[temperature] sensor* (a hwmon driver name),
+*[volume] step* and *[brightness] step*. The clock's formats are
+strftime-style, see *g_date_time_format*(3).
+
+# SEE ALSO
+
+*sway-bar*(5), *swaybar-protocol*(7), *desktop-shell-workspace-window-bar*(1)

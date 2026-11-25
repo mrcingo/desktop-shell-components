@@ -9,6 +9,7 @@ pkgname=(
     desktop-shell-workspace-window-bar
     desktop-shell-window-switcher
     desktop-shell-window-title-format
+    desktop-shell-system-status-line
 )
 pkgver=1.3.0
 pkgrel=1
@@ -126,4 +127,21 @@ package_desktop-shell-window-title-format() {
     _take_program desktop-shell-window-title-format
     _take_files etc/sway/config.d/60-desktop-shell-window-title-format.conf
     _take_files etc/xdg/desktop-shell-components/window-title-format.ini
+}
+
+package_desktop-shell-system-status-line() {
+    pkgdesc='Status line for the sway bar: network, battery, processor, memory and more'
+    depends=(glib2 glibc json-glib libpulse sway)
+    optdepends=(
+        'networkmanager: network and internet reachability'
+        'upower: battery'
+        'power-profiles-daemon: power profile'
+        'bluez: Bluetooth'
+    )
+    backup=(etc/xdg/desktop-shell-components/system-status-line.ini)
+    install=desktop-shell-system-status-line.install
+
+    _install_into_staging
+    _take_program desktop-shell-system-status-line
+    _take_files etc/xdg/desktop-shell-components/system-status-line.ini
 }

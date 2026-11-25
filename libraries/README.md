@@ -40,6 +40,28 @@ Each library does one job. A library only uses the ones above it.
 | `software-rendering-preference`   | Use GTK's lighter renderer for small interfaces                  |
 | `single-instance-lock`            | Let only one copy of a program run per display                   |
 | `replaced-executable-restart`     | Restart a program whose file an upgrade replaced                 |
+| `text-placeholder-expansion`      | Fill `{name}` placeholders in user-written formats               |
+| `human-readable-quantities`       | Short sizes and durations: `1.2M`, `2h 15m`                      |
+| `processor-usage-sampling`        | Processor use from /proc/stat                                    |
+| `hardware-temperature-sensor`     | Temperatures from hwmon devices, found by driver name            |
+| `memory-usage-reading`            | Memory and swap use from /proc/meminfo                           |
+| `filesystem-free-space`           | Size and free space of a filesystem                              |
+| `network-interface-traffic`       | Bytes through a network interface and their rate                 |
+| `display-backlight-level`         | Read and set the screen backlight                                |
+| `polled-system-readings`          | The values above on one timer, each at its own interval          |
+| `system-bus-properties`           | Typed D-Bus properties of system services, and their signals     |
+| `network-manager-status`          | Connection, Wi-Fi signal and internet reachability               |
+| `bluetooth-adapter-status`        | Bluetooth adapter power and connected devices                    |
+| `power-profile-status`            | The power profile, and switching to the next one                 |
+| `battery-charge-status`           | Battery charge, state and time left                              |
+| `system-service-readings`         | The four services above, read again only when they change        |
+| `audio-volume-control`            | Volume and mute of the default output, as they change            |
+| `keyboard-layout-short-names`     | "es" for "Spanish", from the XKB rules                           |
+| `compositor-keyboard-layout`      | The active keyboard layout in sway's replies and events          |
+| `compositor-keyboard-layout-follower` | Follow the keyboard layout through sway's IPC                |
+| `status-bar-block-encoding`       | Write swaybar's status line protocol                             |
+| `status-bar-click-decoding`       | Read swaybar's click events                                      |
+| `clock-boundary-timing`           | Wake a clock exactly when the shown time changes                 |
 
 ## Adding a library
 

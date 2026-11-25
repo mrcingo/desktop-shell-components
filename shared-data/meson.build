@@ -8,6 +8,7 @@ install_data(
 
 install_data(
     'default-settings/login-greeter.ini',
+    'default-settings/system-status-line.ini',
     'default-settings/window-switcher.ini',
     'default-settings/window-title-format.ini',
     'default-settings/workspace-window-bar.ini',
