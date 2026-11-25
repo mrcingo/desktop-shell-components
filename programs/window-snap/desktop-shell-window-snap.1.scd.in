@@ -78,6 +78,16 @@ again. Each word waits for a fresh window tree, as floating windows move
 without the compositor reporting it; words typed quickly are handled in
 turn, and a word that changes nothing sends no command.
 
+# NEW WINDOWS AND WINDOWS OUT OF REACH
+
+A floating window that opens bigger than its monitor is shrunk to fit
+(*fit-new-windows*); one that opens exactly over another moves 32 pixels
+down and right (*cascade-new-windows*). This happens once, 150 ms after the
+window opens, when its size has settled. When monitors change, every
+floating window not fully on a monitor is brought fully onto the nearest
+one; after any other key binding, only a window whose title bar cannot be
+reached is (*bring-back-off-screen-windows*).
+
 # OPTIONS
 
 *-h, --help*

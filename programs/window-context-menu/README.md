@@ -7,7 +7,10 @@ Right-click a window's title bar or border, or its entry in the [window bar](../
 - Copy the process ID, title, application name, command line or working directory
 - Floating, Fullscreen, Sticky, Move to workspace, Move to scratchpad
 
-The menu opens at the pointer. Process actions are off for X11 windows, whose process ID belongs to the X
+The menu opens at the pointer and has the keyboard while open: Escape
+closes it. A click outside closes it; a right-click on another window's
+title bar or border opens that window's menu instead, as on Windows. If the
+window closes while its menu is open, the menu closes too. Process actions are off for X11 windows, whose process ID belongs to the X
 server. Force close reaches the process the menu was opened for, even if
 its ID was reused meanwhile.
 

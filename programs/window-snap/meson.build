@@ -22,6 +22,7 @@ executable(
         single_instance_lock_dependency,
         software_rendering_preference_dependency,
         window_snap_keyboard_steps_dependency,
+        floating_window_arrangement_dependency,
         window_snap_placement_dependency,
         meson.get_compiler('c').find_library('m'),
     ],

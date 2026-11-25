@@ -7,7 +7,7 @@ enum {
     WORKSPACE_MENU_SIZE       = 10,
 };
 
-struct open_menu {
+struct window_context_menu_popover {
     GtkWidget                                        *popover;
     struct window_context_menu_target                *target;
     const struct window_context_menu_popover_handler *handler;
@@ -255,7 +255,7 @@ create_menu_model(void)
 
 static void
 report_menu_closed(
-    const struct open_menu *menu
+    const struct window_context_menu_popover *menu
 )
 {
     if (menu->handler == NULL) {
@@ -288,7 +288,7 @@ remove_closed_menu(
     gpointer user_data
 )
 {
-    struct open_menu *menu = user_data;
+    struct window_context_menu_popover *menu = user_data;
 
     remove_from_parent(menu->popover);
     window_context_menu_target_destroy(menu->target);
@@ -353,7 +353,19 @@ create_popover(
     return popover;
 }
 
-void
+static bool
+closes_on_outside_clicks(
+    const struct window_context_menu_popover_handler *handler
+)
+{
+    if (handler == NULL) {
+        return true;
+    }
+
+    return !handler->parent_handles_outside_clicks;
+}
+
+struct window_context_menu_popover *
 window_context_menu_popover_show(
     GtkWidget                                        *parent,
     const GdkRectangle                               *pointing_to,
@@ -363,10 +375,10 @@ window_context_menu_popover_show(
     void                                             *user_data
 )
 {
-    struct open_menu *menu = g_new0(struct open_menu, 1);
+    struct window_context_menu_popover *menu = g_new0(struct window_context_menu_popover, 1);
 
     /* Held until the menu is removed, even if the parent goes first. */
-    *menu = (struct open_menu){
+    *menu = (struct window_context_menu_popover){
         .popover   = g_object_ref(create_popover(parent, target, ipc_client)),
         .target    = target,
         .handler   = handler,
@@ -375,5 +387,24 @@ window_context_menu_popover_show(
 
     g_signal_connect(menu->popover, "closed", G_CALLBACK(handle_popover_closed), menu);
     gtk_popover_set_pointing_to(GTK_POPOVER(menu->popover), pointing_to);
+    gtk_popover_set_autohide(GTK_POPOVER(menu->popover), closes_on_outside_clicks(handler));
     gtk_popover_popup(GTK_POPOVER(menu->popover));
+
+    return menu;
+}
+
+void
+window_context_menu_popover_stop_reporting(
+    struct window_context_menu_popover *menu
+)
+{
+    menu->handler = NULL;
+}
+
+void
+window_context_menu_popover_close(
+    struct window_context_menu_popover *menu
+)
+{
+    gtk_popover_popdown(GTK_POPOVER(menu->popover));
 }

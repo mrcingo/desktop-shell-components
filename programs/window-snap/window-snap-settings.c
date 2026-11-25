@@ -4,16 +4,19 @@
 #include "window-snap-settings.h"
 
 static const struct program_configuration_key known_keys[] = {
-    {"snap",       "enabled"                },
-    {"snap",       "edge-zone-size"         },
-    {"snap",       "drag-threshold"         },
-    {"snap",       "floating-border-width"  },
-    {"snap",       "tiled-border-width"     },
-    {"preview",    "opacity"                },
-    {"preview",    "show-labels"            },
-    {"appearance", "follow-sway-bar"        },
-    {"layout",     "remove-redundant-groups"},
-    {NULL,         NULL                     },
+    {"snap",       "enabled"                      },
+    {"snap",       "edge-zone-size"               },
+    {"snap",       "drag-threshold"               },
+    {"snap",       "floating-border-width"        },
+    {"snap",       "tiled-border-width"           },
+    {"preview",    "opacity"                      },
+    {"preview",    "show-labels"                  },
+    {"appearance", "follow-sway-bar"              },
+    {"layout",     "remove-redundant-groups"      },
+    {"snap",       "fit-new-windows"              },
+    {"snap",       "cascade-new-windows"          },
+    {"snap",       "bring-back-off-screen-windows"},
+    {NULL,         NULL                           },
 };
 
 /* A whole number setting: group, key, default, smallest and largest value. */
@@ -77,6 +80,36 @@ read_switches(
     );
 }
 
+static void
+read_window_rules(
+    struct window_snap_settings       *settings,
+    struct program_configuration_file *configuration
+)
+{
+    settings->fits_new_windows = program_configuration_file_read_boolean(configuration, "snap", "fit-new-windows", true);
+
+    settings
+        ->cascades_new_windows = program_configuration_file_read_boolean(configuration, "snap", "cascade-new-windows", true);
+
+    settings->brings_back_windows = program_configuration_file_read_boolean(
+        configuration,
+        "snap",
+        "bring-back-off-screen-windows",
+        true
+    );
+}
+
+static void
+read_all_settings(
+    struct window_snap_settings       *settings,
+    struct program_configuration_file *configuration
+)
+{
+    read_numbers(settings, configuration);
+    read_switches(settings, configuration);
+    read_window_rules(settings, configuration);
+}
+
 struct window_snap_settings *
 window_snap_settings_load(
     const char *override_path
@@ -86,8 +119,7 @@ window_snap_settings_load(
     struct window_snap_settings       *settings      = g_new0(struct window_snap_settings, 1);
 
     program_configuration_file_report_unknown_keys(configuration, known_keys);
-    read_numbers(settings, configuration);
-    read_switches(settings, configuration);
+    read_all_settings(settings, configuration);
     program_configuration_file_destroy(configuration);
 
     return settings;

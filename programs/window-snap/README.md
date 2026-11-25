@@ -69,12 +69,29 @@ Optional. In `~/.config/desktop-shell-components/window-snap.ini`:
 | `drag-threshold` in `[snap]`        | pixels, 1 to 100   | `8`     |
 | `floating-border-width` in `[snap]` | 0 to 50            | `6`     |
 | `tiled-border-width` in `[snap]`    | 0 to 50            | `2`     |
+| `fit-new-windows` in `[snap]`       | `true`, `false`    | `true`  |
+| `cascade-new-windows` in `[snap]`   | `true`, `false`    | `true`  |
+| `bring-back-off-screen-windows` in `[snap]` | `true`, `false` | `true` |
 | `opacity` in `[preview]`            | percent            | `30`    |
 | `show-labels` in `[preview]`        | `true`, `false`    | `true`  |
 | `follow-sway-bar` in `[appearance]` | `true`, `false`    | `true`  |
 
 Apply with `swaymsg reload`. With `enabled = false` title bars behave as
 sway's own again.
+
+## New windows and windows out of reach
+
+As on Windows, a floating window that opens bigger than its monitor is
+shrunk to fit, and one that opens exactly over another (every terminal
+opens centred at the same size) moves 32 pixels down and right, starting
+again at the top left when it would leave the screen. This happens once,
+when the window opens; windows moved since are never touched.
+
+When a monitor goes away or changes, every floating window not fully on a
+monitor is brought fully onto the nearest one, also on hidden workspaces.
+After any other key binding, a window whose title bar cannot be reached is
+brought back; a window parked half off screen stays. sway reports no
+drags, so nothing is ever pulled from under a dragging pointer.
 
 ## Tidy layouts
 

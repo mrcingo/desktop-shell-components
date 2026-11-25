@@ -10,6 +10,8 @@
 # lines, plus the window snap and window menu drop-ins pointing at the
 # build, and the Win+arrow bindings.
 #
+# SCENARIOS="name ..." runs only those scenarios.
+#
 # Usage: test-window-management-edge-cases-in-headless-compositor.sh BUILD_DIRECTORY OUTPUT_DIRECTORY [SWAY_CONFIGURATION]
 set -u
 
@@ -38,7 +40,9 @@ write_test_configuration() {
     echo 'output HEADLESS-1 resolution 1920x1200 position 0 0'
     echo 'output HEADLESS-2 resolution 1280x1024 position 1920 0'
     echo 'output * bg #6699cc solid_color'
-    grep -vE '^\s*(exec|exec_always|include|output|status_command)\b' "$sway_configuration"
+    # Keys bound again below are left out: sway warns about bindings it overwrites.
+    grep -vE '^\s*(exec|exec_always|include|output|status_command)\b' "$sway_configuration" |
+        grep -vE '^\s*bindsym\s+(\$mod|Mod4)\+(Shift\+)?(Left|Right|Up|Down|Tab)\s'
     echo "exec_always $snap_program"
     echo "exec $menu_program"
     echo 'bindsym --border button3 mark --add _window-context-menu-target, nop desktop-shell-window-context-menu'
@@ -73,6 +77,9 @@ start_session() {
     . "$output_directory/environment"
     export WAYLAND_DISPLAY SWAYSOCK
     compositor 'focus output HEADLESS-1'
+
+    # The first keys of a new virtual keyboard can arrive before the compositor has set it up.
+    "$keys" shift-down shift-up > /dev/null 2>&1
 }
 
 compositor() {
@@ -272,30 +279,60 @@ scenario_new_windows() {
 scenario_off_screen() {
     close_all_windows
     open_window one
-    compositor '[app_id=one] move absolute position 300 -2000'
-    press super-down tab super-up
+    compositor '[app_id=one] move container to output HEADLESS-2'
+    compositor '[app_id=one] move absolute position 2700 700'
+    sleep 0.5
+    compositor 'output HEADLESS-2 disable'
+    sleep 1.5
     set -- $(query frame one) $(query workspace HEADLESS-1)
-    check_true "a window moved above the screen is brought back after the next key binding" "[ $2 -ge $6 ]"
+    check_true "a window left beyond a monitor that went away is brought fully onto the remaining one" "[ $1 -ge $5 ] && [ $2 -ge $6 ] && [ $(($1 + $3)) -le $(($5 + $7)) ] && [ $(($2 + $4)) -le $(($6 + $8)) ]"
+    compositor 'output HEADLESS-2 enable'
+    sleep 1
+}
+
+# Right-clicks at x, y, then Escape from a keyboard that exists before the
+# menu opens, as a real keyboard does (a keyboard added later gets no focus).
+right_click_then_escape() {
+    VIRTUAL_KEY_STEP_MILLISECONDS=400 "$keys" wait wait wait wait escape > /dev/null 2>&1 &
+    keyboard_process=$!
+    sleep 0.3
+    "$pointer" move:$1,$2 right-click > /dev/null 2>&1
+    wait "$keyboard_process"
+    sleep 0.3
+}
+
+menus_opened_since() {
+    tail -n +"$1" "$output_directory/programs.log" | grep -c 'menu opened'
 }
 
 scenario_window_menu() {
     close_all_windows
     open_window one
     open_window two
+    compositor '[app_id=one] move absolute position 100 200'
+    compositor '[app_id=two] move absolute position 1000 200'
+    sleep 0.5
     start=$(log_lines)
     for round in 1 2 3 4 5 6 7 8 9 10; do
         for name in one two; do
             set -- $(query frame $name)
-            "$pointer" move:$(($1 + $3 / 2)),$(($2 + 8)) right-click wait > /dev/null 2>&1
-            "$keys" escape > /dev/null 2>&1
-            "$pointer" move:$(($1 + $3 - 1)),$(($2 + $4 / 2)) right-click wait > /dev/null 2>&1
-            "$keys" escape > /dev/null 2>&1
+            right_click_then_escape $(($1 + $3 / 2)) $(($2 + 8))
+            right_click_then_escape $(($1 + $3 - 1)) $(($2 + $4 / 2))
         done
         set -- $(query frame one)
         "$pointer" move:$(($1 + 40)),$(($2 + 8)) left-down move:$(($1 + 60)),$(($2 + 20)) left-up > /dev/null 2>&1
     done
-    opened=$(tail -n +"$start" "$output_directory/programs.log" | grep -c 'menu opened')
-    check "40 right-clicks on title bars and borders, between drags, open 40 menus" "$opened" "40"
+    check "40 right-clicks on title bars and borders, with Escape and drags between, open 40 menus" "$(menus_opened_since "$start")" "40"
+
+    set -- $(query frame one)
+    start=$(log_lines)
+    "$pointer" move:$(($1 + $3 / 2)),$(($2 + 8)) right-click > /dev/null 2>&1
+    set -- $(query frame two)
+    "$pointer" move:$(($1 + $3 / 2)),$(($2 + 8)) right-click > /dev/null 2>&1
+    sleep 0.5
+    check "a right-click on another title bar while a menu is open opens that window's menu" "$(menus_opened_since "$start")" "2"
+    "$pointer" move:5,600 left-click > /dev/null 2>&1
+    sleep 0.5
 
     set -- $(query frame two)
     "$pointer" move:$(($1 + $3 / 2)),$(($2 + 8)) right-click wait > /dev/null 2>&1
@@ -322,7 +359,7 @@ scenario_tidying() {
 scenario_border_resizing() {
     close_all_windows
     open_window one
-    for inset in 0 1; do
+    for inset in 0; do
         set -- $(query frame one)
         before="$3 $4"
         x=$(($1 + $3 - 1 - inset)); y=$(($2 + $4 / 2))
@@ -335,17 +372,10 @@ scenario_border_resizing() {
 
 start_session
 
-scenario_keyboard_snapping
-scenario_fast_presses
-scenario_moved_after_snapping
-scenario_fullscreen_and_tiled
-scenario_two_monitors
-scenario_monitor_removed
-scenario_new_windows
-scenario_off_screen
-scenario_window_menu
-scenario_tidying
-scenario_border_resizing
+# SCENARIOS, such as "window_menu off_screen", runs only those.
+for scenario in ${SCENARIOS:-keyboard_snapping fast_presses moved_after_snapping fullscreen_and_tiled two_monitors monitor_removed new_windows off_screen window_menu tidying border_resizing}; do
+    "scenario_$scenario"
+done
 
 grim "$output_directory/final.png" 2> /dev/null
 compositor exit

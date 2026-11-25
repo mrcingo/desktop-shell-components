@@ -6,6 +6,7 @@
 
 #include "compositor-matched-appearance.h"
 #include "compositor-state-tracker.h"
+#include "floating-window-arrangement.h"
 #include "monitor-connector-lookup.h"
 #include "window-snap-application.h"
 #include "window-snap-keyboard-steps.h"
@@ -60,8 +61,16 @@ struct window_snap_application {
     bool                 released_early; // released before that tree came: a click
     struct drag_session *session;        // NULL while nothing is pressed
     GQueue              *pending_words;  // keyboard words waiting for a fresh window tree
-    int64_t              last_click_window;
-    gint64               last_click_time;
+
+    GHashTable *known_window_ids;    // int64_t container IDs seen in an earlier tree
+    GArray     *new_window_ids;      // int64_t: opened, waiting until their size has settled
+    guint       settle_source;       // the pause before arranging new windows
+    bool        is_arranging_due;    // the pause is over: the next tree arranges them
+    bool        has_seen_first_tree; // windows of the first tree were there before the program
+    char       *output_layout;       // the monitors' names and areas, to notice changes
+    bool        is_reach_check_due;  // a binding ran: windows may be out of reach
+    int64_t     last_click_window;
+    gint64      last_click_time;
 };
 
 static struct compositor_ipc_client *
@@ -1407,6 +1416,451 @@ remove_redundant_groups(
     }
 }
 
+/* New windows and windows out of reach. */
+
+enum {
+    CASCADE_STEP = 32, // pixels down and right, as Windows cascades
+};
+
+static GArray *
+create_frame_array(void)
+{
+    return g_array_new(FALSE, FALSE, sizeof(struct compositor_rectangle));
+}
+
+static void
+append_frame_if_other_floating(
+    GArray                         *frames,
+    const struct compositor_window *candidate,
+    const struct compositor_window *window
+)
+{
+    struct compositor_rectangle frame = window_snap_frame_of(candidate);
+
+    if (!candidate->is_floating) {
+        return;
+    }
+
+    if (candidate->container_id != window->container_id) {
+        g_array_append_val(frames, frame);
+    }
+}
+
+/* The frames of the other floating windows on the window's workspace, and frames placed in this round. */
+static GArray *
+collect_other_floating_frames(
+    const struct compositor_output *output,
+    const struct compositor_window *window,
+    const GArray                   *placed_frames
+)
+{
+    GArray *frames = create_frame_array();
+
+    g_array_append_vals(frames, placed_frames->data, placed_frames->len);
+
+    for (guint i = 0; i < output->windows_on_visible_workspace->len; i++) {
+        append_frame_if_other_floating(frames, g_ptr_array_index(output->windows_on_visible_workspace, i), window);
+    }
+
+    return frames;
+}
+
+static bool
+fit_frame_if_wanted(
+    struct window_snap_application *snap,
+    const struct compositor_output *output,
+    struct compositor_rectangle    *frame
+)
+{
+    if (!snap->settings->fits_new_windows) {
+        return false;
+    }
+
+    return floating_window_arrangement_fit(frame, &output->workspace_area, frame);
+}
+
+static bool
+cascade_frame_if_wanted(
+    struct window_snap_application *snap,
+    const struct compositor_output *output,
+    const GArray                   *other_frames,
+    struct compositor_rectangle    *frame
+)
+{
+    if (!snap->settings->cascades_new_windows) {
+        return false;
+    }
+
+    return floating_window_arrangement_cascade(frame, &output->workspace_area, other_frames, CASCADE_STEP, frame);
+}
+
+/* Fits and cascades the frame as the settings ask; returns whether it changed. */
+static bool
+arrange_frame(
+    struct window_snap_application *snap,
+    const struct compositor_output *output,
+    const GArray                   *other_frames,
+    struct compositor_rectangle    *frame
+)
+{
+    bool was_fitted   = fit_frame_if_wanted(snap, output, frame);
+    bool was_cascaded = cascade_frame_if_wanted(snap, output, other_frames, frame);
+
+    return was_fitted || was_cascaded;
+}
+
+static bool
+is_arrangeable(
+    const struct compositor_window_tree *tree,
+    const struct compositor_window      *window
+)
+{
+    if (!window->is_floating) {
+        return false;
+    }
+
+    if (window->is_fullscreen) {
+        return false;
+    }
+
+    return output_showing(tree, window) != NULL;
+}
+
+static void
+place_new_window(
+    struct window_snap_application    *snap,
+    const struct compositor_window    *window,
+    const struct compositor_rectangle *frame,
+    GArray                            *placed_frames
+)
+{
+    g_autofree char *command = build_area_command(snap, window, frame);
+
+    run_command(snap, command);
+    g_array_append_val(placed_frames, *frame);
+}
+
+/* Only the moment a window opens; windows the user moved since are never touched. */
+static void
+arrange_new_window(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree,
+    const struct compositor_window      *window,
+    GArray                              *placed_frames
+)
+{
+    const struct compositor_output *output = output_showing(tree, window);
+    struct compositor_rectangle     frame  = window_snap_frame_of(window);
+
+    g_autoptr(GArray) other_frames = collect_other_floating_frames(output, window, placed_frames);
+
+    if (arrange_frame(snap, output, other_frames, &frame)) {
+        place_new_window(snap, window, &frame, placed_frames);
+    }
+}
+
+static bool
+remember_if_new(
+    struct window_snap_application *snap,
+    const struct compositor_window *window
+)
+{
+    if (g_hash_table_contains(snap->known_window_ids, &window->container_id)) {
+        return false;
+    }
+
+    g_hash_table_add(snap->known_window_ids, g_memdup2(&window->container_id, sizeof(window->container_id)));
+
+    return true;
+}
+
+enum {
+    SETTLE_MILLISECONDS = 150, // a new window's first frames may still change its size
+};
+
+static gboolean
+end_settle_pause(
+    gpointer user_data
+)
+{
+    struct window_snap_application *snap = user_data;
+
+    snap->settle_source    = 0;
+    snap->is_arranging_due = true;
+
+    compositor_state_tracker_refresh_window_tree(snap->compositor_state);
+
+    return G_SOURCE_REMOVE;
+}
+
+/* Windows of the first tree were there before the program started and are left alone. */
+static void
+note_window_if_new(
+    struct window_snap_application *snap,
+    const struct compositor_window *window
+)
+{
+    if (!remember_if_new(snap, window)) {
+        return;
+    }
+
+    if (!snap->has_seen_first_tree) {
+        return;
+    }
+
+    g_array_append_val(snap->new_window_ids, window->container_id);
+    g_clear_handle_id(&snap->settle_source, g_source_remove);
+
+    snap->settle_source = g_timeout_add(SETTLE_MILLISECONDS, end_settle_pause, snap);
+}
+
+static void
+arrange_settled_window(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree,
+    int64_t                              container_id,
+    GArray                              *placed_frames
+)
+{
+    const struct compositor_window *window = compositor_window_tree_find_window(tree, container_id);
+
+    if (window == NULL) {
+        return; // closed meanwhile
+    }
+
+    if (is_arrangeable(tree, window)) {
+        arrange_new_window(snap, tree, window, placed_frames);
+    }
+}
+
+static void
+arrange_settled_windows(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree
+)
+{
+    g_autoptr(GArray) placed_frames = create_frame_array();
+
+    snap->is_arranging_due = false;
+
+    for (guint i = 0; i < snap->new_window_ids->len; i++) {
+        arrange_settled_window(snap, tree, g_array_index(snap->new_window_ids, int64_t, i), placed_frames);
+    }
+
+    g_array_set_size(snap->new_window_ids, 0);
+}
+
+static void
+forget_closed_window_ids(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree
+)
+{
+    GHashTableIter iterator;
+    int64_t       *container_id;
+
+    g_hash_table_iter_init(&iterator, snap->known_window_ids);
+
+    while (g_hash_table_iter_next(&iterator, (gpointer *)&container_id, NULL)) {
+        if (compositor_window_tree_find_window(tree, *container_id) == NULL) {
+            g_hash_table_iter_remove(&iterator);
+        }
+    }
+}
+
+static void
+arrange_new_windows(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree
+)
+{
+    forget_closed_window_ids(snap, tree);
+
+    for (guint i = 0; i < tree->all_windows->len; i++) {
+        note_window_if_new(snap, g_ptr_array_index(tree->all_windows, i));
+    }
+
+    snap->has_seen_first_tree = true;
+
+    if (snap->is_arranging_due) {
+        arrange_settled_windows(snap, tree);
+    }
+}
+
+static char *
+describe_output_layout(
+    const struct compositor_window_tree *tree
+)
+{
+    GString *description = g_string_new(NULL);
+
+    for (guint i = 0; i < tree->outputs->len; i++) {
+        const struct compositor_output    *output = g_ptr_array_index(tree->outputs, i);
+        const struct compositor_rectangle *area   = &output->workspace_area;
+
+        g_string_append_printf(
+            description,
+            "%s %d %d %d %d;",
+            output->output_name,
+            area->x,
+            area->y,
+            area->width,
+            area->height
+        );
+    }
+
+    return g_string_free(description, FALSE);
+}
+
+/* True when monitors came, went or changed since the last tree. */
+static bool
+note_output_layout(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree
+)
+{
+    char *layout  = describe_output_layout(tree);
+    bool  changed = g_strcmp0(layout, snap->output_layout) != 0;
+
+    g_free(snap->output_layout);
+
+    snap->output_layout = layout;
+
+    return changed;
+}
+
+static GArray *
+collect_workspace_areas(
+    const struct compositor_window_tree *tree
+)
+{
+    GArray *areas = create_frame_array();
+
+    for (guint i = 0; i < tree->outputs->len; i++) {
+        const struct compositor_output *output = g_ptr_array_index(tree->outputs, i);
+
+        g_array_append_val(areas, output->workspace_area);
+    }
+
+    return areas;
+}
+
+/* Also on hidden workspaces: a monitor that went away leaves its windows on another monitor's hidden workspace. */
+static bool
+is_movable_floating_window(
+    const struct compositor_window *window
+)
+{
+    if (!window->is_floating) {
+        return false;
+    }
+
+    return !window->is_fullscreen;
+}
+
+/* After a monitor change the whole window must be on a monitor; after a binding a reachable title bar is enough. */
+static bool
+find_brought_back_frame(
+    const struct compositor_window *window,
+    const GArray                   *workspace_areas,
+    bool                            needs_whole_window,
+    struct compositor_rectangle    *brought_back
+)
+{
+    struct compositor_rectangle frame = window_snap_frame_of(window);
+
+    if (needs_whole_window) {
+        return floating_window_arrangement_bring_fully_on_screen(&frame, workspace_areas, brought_back);
+    }
+
+    return floating_window_arrangement_bring_back(&frame, window->title_bar_height, workspace_areas, brought_back);
+}
+
+static void
+bring_back_window_if_out_of_reach(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree,
+    const struct compositor_window      *window,
+    const GArray                        *workspace_areas,
+    bool                                 needs_whole_window
+)
+{
+    struct compositor_rectangle brought_back;
+
+    if (!is_movable_floating_window(window)) {
+        return;
+    }
+
+    if (!find_brought_back_frame(window, workspace_areas, needs_whole_window, &brought_back)) {
+        return;
+    }
+
+    g_autofree char *command = build_area_command(snap, window, &brought_back);
+
+    run_command(snap, command);
+}
+
+/*
+ * The compositor reports no drags, so a window is only checked when its
+ * place is settled: after the monitors changed (then the whole window must
+ * be on a monitor, as on Windows) or a key binding ran (then a reachable
+ * title bar is enough, so a window parked half off screen stays). That
+ * never pulls a window away from under a dragging pointer.
+ */
+static void
+bring_back_all_windows(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree,
+    bool                                 needs_whole_windows
+)
+{
+    g_autoptr(GArray) workspace_areas = collect_workspace_areas(tree);
+
+    for (guint i = 0; i < tree->all_windows->len; i++) {
+        bring_back_window_if_out_of_reach(
+            snap,
+            tree,
+            g_ptr_array_index(tree->all_windows, i),
+            workspace_areas,
+            needs_whole_windows
+        );
+    }
+}
+
+static void
+bring_back_windows_if_due(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree,
+    bool                                 outputs_changed,
+    bool                                 binding_ran
+)
+{
+    if (outputs_changed) {
+        bring_back_all_windows(snap, tree, true);
+        return;
+    }
+
+    if (binding_ran) {
+        bring_back_all_windows(snap, tree, false);
+    }
+}
+
+static void
+bring_back_windows_out_of_reach(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree
+)
+{
+    bool outputs_changed = note_output_layout(snap, tree);
+    bool binding_ran     = snap->is_reach_check_due;
+
+    snap->is_reach_check_due = false;
+
+    if (snap->settings->brings_back_windows) {
+        bring_back_windows_if_due(snap, tree, outputs_changed, binding_ran);
+    }
+}
+
 /*
  * Floating windows move and go fullscreen without the compositor reporting
  * it, so each keyboard word waits for a fresh tree; words typed quickly are
@@ -1468,6 +1922,8 @@ handle_window_tree_updated(
 
     forget_closed_windows(snap, tree);
     remove_redundant_groups(snap, tree);
+    arrange_new_windows(snap, tree);
+    bring_back_windows_out_of_reach(snap, tree);
     handle_next_pending_word(snap);
     begin_pending_press(snap, tree);
 }
@@ -1585,6 +2041,8 @@ refresh_after_other_binding(
     if (g_str_has_prefix(command, "nop")) {
         return;
     }
+
+    snap->is_reach_check_due = true;
 
     compositor_state_tracker_refresh_window_tree(snap->compositor_state);
 }
@@ -1741,6 +2199,7 @@ handle_shutdown(
     struct window_snap_application *snap = user_data;
 
     end_session(snap);
+    g_clear_handle_id(&snap->settle_source, g_source_remove);
     g_clear_pointer(&snap->appearance, compositor_matched_appearance_destroy);
     g_clear_pointer(&snap->compositor_state, compositor_state_tracker_destroy);
     g_clear_pointer(&snap->settings, window_snap_settings_destroy);
@@ -1754,6 +2213,9 @@ release_application(
     g_object_unref(snap->gtk_application);
     g_hash_table_unref(snap->snap_records);
     g_queue_free_full(snap->pending_words, g_free);
+    g_hash_table_unref(snap->known_window_ids);
+    g_array_unref(snap->new_window_ids);
+    g_free(snap->output_layout);
 }
 
 bool
@@ -1762,10 +2224,12 @@ window_snap_application_run(
 )
 {
     struct window_snap_application snap = {
-        .options         = options,
-        .gtk_application = gtk_application_new(NULL, G_APPLICATION_NON_UNIQUE),
-        .snap_records    = g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, g_free),
-        .pending_words   = g_queue_new(),
+        .options          = options,
+        .gtk_application  = gtk_application_new(NULL, G_APPLICATION_NON_UNIQUE),
+        .snap_records     = g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, g_free),
+        .pending_words    = g_queue_new(),
+        .known_window_ids = g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL),
+        .new_window_ids   = g_array_new(FALSE, FALSE, sizeof(int64_t)),
     };
 
     g_signal_connect(snap.gtk_application, "activate", G_CALLBACK(handle_activate), &snap);
