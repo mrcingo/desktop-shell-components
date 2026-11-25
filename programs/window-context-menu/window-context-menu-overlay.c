@@ -45,6 +45,7 @@ handle_menu_closed(
 static const struct window_context_menu_popover_handler popover_handler = {
     .handle_closed                 = handle_menu_closed,
     .parent_handles_outside_clicks = true,
+    .keeps_menu_inside_parent      = true,
 };
 
 /* How long to wait for the pointer's position before using the fallback position. */

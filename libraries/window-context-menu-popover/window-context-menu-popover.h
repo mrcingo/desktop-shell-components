@@ -23,6 +23,12 @@ struct window_context_menu_popover_handler {
      * otherwise swallow the click that closes it.
      */
     bool parent_handles_outside_clicks;
+    /*
+     * True when the parent covers the whole monitor: a menu that does not
+     * fit below the pointed place opens above it, as on Windows, or is moved
+     * up just enough to fit, instead of being cut at the monitor's bottom.
+     */
+    bool keeps_menu_inside_parent;
 };
 
 /* One open menu; it removes itself once closed. */

@@ -66,7 +66,7 @@ start_session() {
 
     export XDG_CONFIG_HOME="$output_directory/configuration-home"
     export DESKTOP_SHELL_COMPONENTS_DATA_DIRECTORY="$source_directory/shared-data"
-    export G_MESSAGES_DEBUG="window-snap window-context-menu"
+    export G_MESSAGES_DEBUG="window-snap window-context-menu window-context-menu-popover"
     export WLR_HEADLESS_OUTPUTS=2
     export VIRTUAL_POINTER_LAYOUT_SIZE=3200x1200
 
@@ -332,6 +332,21 @@ scenario_window_menu() {
     sleep 0.5
     check "a right-click on another title bar while a menu is open opens that window's menu" "$(menus_opened_since "$start")" "2"
     "$pointer" move:5,600 left-click > /dev/null 2>&1
+    sleep 0.5
+
+    compositor '[app_id=two] move container to output HEADLESS-2'
+    compositor '[app_id=two] move absolute position 2500 600'
+    sleep 0.5
+    set -- $(query frame two)
+    start=$(log_lines)
+    "$pointer" move:$(($1 + $3 - 20)),$(($2 + 8)) right-click wait > /dev/null 2>&1
+    sleep 0.5
+    grim "$output_directory/menu-at-right-edge-of-second-monitor.png" 2> /dev/null
+    check "the menu opens on the second monitor, at its right edge" "$(menus_opened_since "$start")" "1"
+    # 1024 pixels high: the menu fits neither below nor above the title bar.
+    moved=$(tail -n +"$start" "$output_directory/programs.log" | grep -c 'menu moved up to fit: 39[0-9] pixels')
+    check "a menu too tall for either side of the title bar is moved up until all of it shows" "$moved" "1"
+    "$pointer" move:2000,100 left-click > /dev/null 2>&1
     sleep 0.5
 
     set -- $(query frame two)

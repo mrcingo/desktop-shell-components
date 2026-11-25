@@ -12,6 +12,7 @@ struct window_context_menu_popover {
     struct window_context_menu_target                *target;
     const struct window_context_menu_popover_handler *handler;
     void                                             *user_data;
+    GdkRectangle                                      pointing_to;
 };
 
 /* Placeholders that add_header_labels fills with labels, which cannot be clicked or focused. */
@@ -365,6 +366,107 @@ closes_on_outside_clicks(
     return !handler->parent_handles_outside_clicks;
 }
 
+static int
+measure_natural_height(
+    GtkWidget *widget
+)
+{
+    int natural_height = 0;
+
+    gtk_widget_measure(widget, GTK_ORIENTATION_VERTICAL, -1, NULL, &natural_height, NULL, NULL);
+
+    return natural_height;
+}
+
+/* GTK opens a menu above the pointed place by itself when it fits there. */
+static bool
+fits_neither_below_nor_above(
+    const GdkRectangle *pointing_to,
+    int                 menu_height,
+    int                 parent_height
+)
+{
+    if (pointing_to->y + pointing_to->height + menu_height <= parent_height) {
+        return false;
+    }
+
+    return pointing_to->y < menu_height;
+}
+
+/*
+ * GTK opens a menu that fits neither below nor above the pointed place below
+ * it anyway, shrunk to a scrolling list cut at the monitor's bottom. Windows
+ * moves such a menu up until all of it shows; so does this, once the menu has
+ * its real height, which it has from its first frame on.
+ */
+static void
+move_menu_up(
+    GtkWidget          *popover,
+    const GdkRectangle *pointing_to,
+    int                 menu_height,
+    int                 parent_height
+)
+{
+    GdkRectangle moved_up = *pointing_to;
+
+    moved_up.y = MAX(0, parent_height - menu_height - moved_up.height);
+
+    g_debug("menu moved up to fit: %d pixels from the top", moved_up.y);
+    gtk_popover_set_pointing_to(GTK_POPOVER(popover), &moved_up);
+}
+
+static gboolean
+move_menu_up_to_fit(
+    GtkWidget     *popover,
+    GdkFrameClock *frame_clock,
+    gpointer       user_data
+)
+{
+    const struct window_context_menu_popover *menu          = user_data;
+    int                                       menu_height   = measure_natural_height(popover);
+    int                                       parent_height = gtk_widget_get_height(gtk_widget_get_parent(popover));
+
+    if (fits_neither_below_nor_above(&menu->pointing_to, menu_height, parent_height)) {
+        move_menu_up(popover, &menu->pointing_to, menu_height, parent_height);
+    }
+
+    return G_SOURCE_REMOVE;
+}
+
+static void
+fit_menu_on_first_frame(
+    GtkWidget *popover,
+    gpointer   user_data
+)
+{
+    gtk_widget_add_tick_callback(popover, move_menu_up_to_fit, user_data, NULL);
+}
+
+static void
+keep_menu_inside_parent_if_asked(
+    struct window_context_menu_popover *menu
+)
+{
+    if (menu->handler == NULL) {
+        return;
+    }
+
+    if (!menu->handler->keeps_menu_inside_parent) {
+        return;
+    }
+
+    g_signal_connect(menu->popover, "map", G_CALLBACK(fit_menu_on_first_frame), menu);
+}
+
+static void
+set_closing_and_fitting(
+    struct window_context_menu_popover *menu
+)
+{
+    gtk_popover_set_autohide(GTK_POPOVER(menu->popover), closes_on_outside_clicks(menu->handler));
+    keep_menu_inside_parent_if_asked(menu);
+}
+
 struct window_context_menu_popover *
 window_context_menu_popover_show(
     GtkWidget                                        *parent,
@@ -379,15 +481,16 @@ window_context_menu_popover_show(
 
     /* Held until the menu is removed, even if the parent goes first. */
     *menu = (struct window_context_menu_popover){
-        .popover   = g_object_ref(create_popover(parent, target, ipc_client)),
-        .target    = target,
-        .handler   = handler,
-        .user_data = user_data,
+        .popover     = g_object_ref(create_popover(parent, target, ipc_client)),
+        .target      = target,
+        .handler     = handler,
+        .user_data   = user_data,
+        .pointing_to = *pointing_to,
     };
 
     g_signal_connect(menu->popover, "closed", G_CALLBACK(handle_popover_closed), menu);
     gtk_popover_set_pointing_to(GTK_POPOVER(menu->popover), pointing_to);
-    gtk_popover_set_autohide(GTK_POPOVER(menu->popover), closes_on_outside_clicks(handler));
+    set_closing_and_fitting(menu);
     gtk_popover_popup(GTK_POPOVER(menu->popover));
 
     return menu;

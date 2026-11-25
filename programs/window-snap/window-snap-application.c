@@ -63,6 +63,7 @@ struct window_snap_application {
     GQueue              *pending_words;  // keyboard words waiting for a fresh window tree
 
     GHashTable *known_window_ids;    // int64_t container IDs seen in an earlier tree
+    GHashTable *tidied_group_ids;    // int64_t: "split none" already sent for these
     GArray     *new_window_ids;      // int64_t: opened, waiting until their size has settled
     guint       settle_source;       // the pause before arranging new windows
     bool        is_arranging_due;    // the pause is over: the next tree arranges them
@@ -1401,18 +1402,68 @@ remove_redundant_group(
     run_command(snap, command);
 }
 
+static bool
+is_still_redundant(
+    const struct compositor_window_tree *tree,
+    int64_t                              container_id
+)
+{
+    for (guint i = 0; i < tree->redundant_wrapper_child_ids->len; i++) {
+        if (g_array_index(tree->redundant_wrapper_child_ids, int64_t, i) == container_id) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/* A group the compositor did not take apart is not asked again until it changes. */
+static void
+forget_tidied_groups_that_changed(
+    struct window_snap_application      *snap,
+    const struct compositor_window_tree *tree
+)
+{
+    GHashTableIter iterator;
+    int64_t       *container_id;
+
+    g_hash_table_iter_init(&iterator, snap->tidied_group_ids);
+
+    while (g_hash_table_iter_next(&iterator, (gpointer *)&container_id, NULL)) {
+        if (!is_still_redundant(tree, *container_id)) {
+            g_hash_table_iter_remove(&iterator);
+        }
+    }
+}
+
+static void
+remove_redundant_group_once(
+    struct window_snap_application *snap,
+    int64_t                         container_id
+)
+{
+    if (g_hash_table_contains(snap->tidied_group_ids, &container_id)) {
+        return;
+    }
+
+    g_hash_table_add(snap->tidied_group_ids, g_memdup2(&container_id, sizeof(container_id)));
+    remove_redundant_group(snap, container_id);
+}
+
 static void
 remove_redundant_groups(
     struct window_snap_application      *snap,
     const struct compositor_window_tree *tree
 )
 {
+    forget_tidied_groups_that_changed(snap, tree);
+
     if (!snap->settings->removes_redundant_groups) {
         return;
     }
 
     for (guint i = 0; i < tree->redundant_wrapper_child_ids->len; i++) {
-        remove_redundant_group(snap, g_array_index(tree->redundant_wrapper_child_ids, int64_t, i));
+        remove_redundant_group_once(snap, g_array_index(tree->redundant_wrapper_child_ids, int64_t, i));
     }
 }
 
@@ -2215,6 +2266,7 @@ release_application(
     g_queue_free_full(snap->pending_words, g_free);
     g_hash_table_unref(snap->known_window_ids);
     g_array_unref(snap->new_window_ids);
+    g_hash_table_unref(snap->tidied_group_ids);
     g_free(snap->output_layout);
 }
 
@@ -2230,6 +2282,7 @@ window_snap_application_run(
         .pending_words    = g_queue_new(),
         .known_window_ids = g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL),
         .new_window_ids   = g_array_new(FALSE, FALSE, sizeof(int64_t)),
+        .tidied_group_ids = g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL),
     };
 
     g_signal_connect(snap.gtk_application, "activate", G_CALLBACK(handle_activate), &snap);
