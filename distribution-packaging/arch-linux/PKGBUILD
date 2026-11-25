@@ -14,7 +14,7 @@ pkgname=(
     desktop-shell-notification-daemon
     desktop-shell-tray-click-window-focus
 )
-pkgver=1.4.1
+pkgver=1.4.2
 pkgrel=1
 pkgdesc='Login screen, bars, window menu, notifications and Alt+Tab switcher for sway'
 arch=(x86_64)
