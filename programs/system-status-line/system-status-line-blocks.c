@@ -3,12 +3,17 @@
 #include "human-readable-quantities.h"
 #include "status-bar-block-encoding.h"
 #include "system-status-line-blocks.h"
+#include "text-ellipsis-truncation.h"
 #include "text-placeholder-expansion.h"
 
 enum block_severity {
     BLOCK_SEVERITY_NORMAL,
     BLOCK_SEVERITY_WARNING,
     BLOCK_SEVERITY_URGENT,
+    BLOCK_SEVERITY_ACCENT,   // a new notification: accent background for its first seconds
+    BLOCK_SEVERITY_QUIET,    // only holds a place, such as "0" notifications
+    BLOCK_SEVERITY_UNREAD,   // an unread notification after its first seconds
+    BLOCK_SEVERITY_CRITICAL, // an unread critical notification after its first seconds
 };
 
 struct render_context {
@@ -252,6 +257,213 @@ falling_severity_of(
     const struct system_status_line_block_settings *block = block_settings(context);
 
     return severity_falling(value, block->warning_threshold, block->urgent_threshold);
+}
+
+/* ---- notifications: the latest one is shown in the bar itself */
+
+/* " (+2)" when two more than the shown one are unread. */
+static char *
+more_unread_text(
+    uint32_t unread_count
+)
+{
+    if (unread_count <= 1) {
+        return g_strdup("");
+    }
+
+    return g_strdup_printf(" (+%u)", unread_count - 1);
+}
+
+static const char *
+do_not_disturb_text(
+    bool does_not_disturb
+)
+{
+    if (does_not_disturb) {
+        return " DND";
+    }
+
+    return "";
+}
+
+/* Critical: the bar's urgent colors at first, then the critical color. */
+static enum block_severity
+critical_severity(
+    bool is_new
+)
+{
+    if (is_new) {
+        return BLOCK_SEVERITY_URGENT;
+    }
+
+    return BLOCK_SEVERITY_CRITICAL;
+}
+
+/* Normal: the accent background at first, then the unread color. */
+static enum block_severity
+normal_severity(
+    bool is_new
+)
+{
+    if (is_new) {
+        return BLOCK_SEVERITY_ACCENT;
+    }
+
+    return BLOCK_SEVERITY_UNREAD;
+}
+
+/* Do not disturb and low urgency keep the block plain. */
+static enum block_severity
+notification_severity(
+    const struct notification_center_state *notifications,
+    bool                                    is_new
+)
+{
+    if (notifications->does_not_disturb) {
+        return BLOCK_SEVERITY_NORMAL;
+    }
+
+    if (notifications->latest_urgency == NOTIFICATION_URGENCY_CRITICAL) {
+        return critical_severity(is_new);
+    }
+
+    if (notifications->latest_urgency == NOTIFICATION_URGENCY_NORMAL) {
+        return normal_severity(is_new);
+    }
+
+    return BLOCK_SEVERITY_NORMAL;
+}
+
+/* NULL hides the block: nothing unread and the quiet marker turned off. */
+static const char *
+quiet_notification_format_key(
+    const struct notification_center_state   *notifications,
+    const struct system_status_line_settings *settings
+)
+{
+    if (!notifications->is_available) {
+        return "format-unavailable";
+    }
+
+    if (notifications->does_not_disturb) {
+        return "format-do-not-disturb";
+    }
+
+    if (!settings->shows_empty_notifications) {
+        return NULL;
+    }
+
+    return "format-read";
+}
+
+static bool
+render_quiet_notifications(
+    const struct render_context            *context,
+    struct block_content                   *content,
+    const struct notification_center_state *notifications
+)
+{
+    const char               *format_key   = quiet_notification_format_key(notifications, context->settings);
+    struct owned_placeholders placeholders = {0};
+
+    if (format_key == NULL) {
+        return false;
+    }
+
+    return show_expanded(context, content, format_key, &placeholders, BLOCK_SEVERITY_QUIET);
+}
+
+static void
+add_notification_placeholders(
+    struct owned_placeholders              *placeholders,
+    const struct notification_center_state *notifications,
+    int                                     width
+)
+{
+    add_owned(placeholders, "text", text_ellipsis_truncate(notifications->latest_text, (size_t)width));
+    add_owned(placeholders, "count", g_strdup_printf("%u", notifications->unread_count));
+    add_owned(placeholders, "more", more_unread_text(notifications->unread_count));
+    add_copy(placeholders, "dnd", do_not_disturb_text(notifications->does_not_disturb));
+}
+
+static bool
+render_unread_notifications(
+    const struct render_context            *context,
+    struct block_content                   *content,
+    const struct notification_center_state *notifications
+)
+{
+    struct owned_placeholders placeholders = {0};
+    enum block_severity       severity     = notification_severity(notifications, context->inputs->emphasizes_new_notification);
+
+    add_notification_placeholders(&placeholders, notifications, context->settings->notification_width);
+
+    return show_expanded(context, content, "format-unread", &placeholders, severity);
+}
+
+/* Until the bus answers, the block stays hidden rather than claiming there is no daemon. */
+static bool
+is_notification_state_known(
+    const struct notification_center_state *notifications
+)
+{
+    if (notifications == NULL) {
+        return false;
+    }
+
+    return notifications->is_known;
+}
+
+static bool
+render_notifications(
+    const struct render_context *context,
+    struct block_content        *content
+)
+{
+    const struct notification_center_state *notifications = context->inputs->notifications;
+
+    if (!is_notification_state_known(notifications)) {
+        return false;
+    }
+
+    if (notifications->unread_count == 0) {
+        return render_quiet_notifications(context, content, notifications);
+    }
+
+    return render_unread_notifications(context, content, notifications);
+}
+
+/* ---- attention: windows that asked for it; the default hides the block at 0 */
+
+static bool
+render_attention_count(
+    const struct render_context *context,
+    struct block_content        *content,
+    int                          count
+)
+{
+    struct owned_placeholders placeholders = {0};
+
+    add_owned(&placeholders, "count", g_strdup_printf("%d", count));
+
+    if (count == 0) {
+        return show_expanded(context, content, "format-none", &placeholders, BLOCK_SEVERITY_NORMAL);
+    }
+
+    return show_expanded(context, content, "format", &placeholders, BLOCK_SEVERITY_URGENT);
+}
+
+static bool
+render_attention(
+    const struct render_context *context,
+    struct block_content        *content
+)
+{
+    if (context->inputs->attention_count < 0) {
+        return false;
+    }
+
+    return render_attention_count(context, content, context->inputs->attention_count);
 }
 
 /* ---- network */
@@ -799,6 +1011,8 @@ static bool (*const renderers[SYSTEM_STATUS_LINE_BLOCK_KIND_COUNT])(
     const struct render_context *context,
     struct block_content        *content
 ) = {
+    render_notifications,
+    render_attention,
     render_network,
     render_traffic,
     render_bluetooth,
@@ -864,6 +1078,23 @@ make_markup_safe(
 }
 
 static const char *
+notification_color_for(
+    const struct system_status_line_settings *settings,
+    enum block_severity                       severity
+)
+{
+    if (severity == BLOCK_SEVERITY_QUIET) {
+        return settings->quiet_color;
+    }
+
+    if (severity == BLOCK_SEVERITY_UNREAD) {
+        return settings->unread_color;
+    }
+
+    return settings->critical_color;
+}
+
+static const char *
 color_for(
     const struct system_status_line_settings *settings,
     enum block_severity                       severity
@@ -873,7 +1104,28 @@ color_for(
         return settings->warning_color;
     }
 
+    if (severity == BLOCK_SEVERITY_ACCENT) {
+        return settings->accent_text_color;
+    }
+
+    if (severity >= BLOCK_SEVERITY_QUIET) {
+        return notification_color_for(settings, severity);
+    }
+
     return settings->text_color;
+}
+
+static const char *
+background_for(
+    const struct system_status_line_settings *settings,
+    enum block_severity                       severity
+)
+{
+    if (severity == BLOCK_SEVERITY_ACCENT) {
+        return settings->accent_color;
+    }
+
+    return NULL;
 }
 
 static struct status_bar_block
@@ -887,10 +1139,31 @@ describe_block(
         .name                  = system_status_line_block_name(kind),
         .full_text             = content->text,
         .color                 = color_for(settings, content->severity),
+        .background            = background_for(settings, content->severity),
         .separator_block_width = settings->separator_width,
         .is_urgent             = content->severity == BLOCK_SEVERITY_URGENT,
         .uses_markup           = true,
     };
+}
+
+/* False when the block is hidden: its source is missing or its format for this state is empty. */
+static bool
+render_visible(
+    const struct render_context *context,
+    struct block_content        *content
+)
+{
+    if (!renderers[context->kind](context, content)) {
+        return false;
+    }
+
+    if (content->text[0] != '\0') {
+        return true;
+    }
+
+    g_clear_pointer(&content->text, g_free);
+
+    return false;
 }
 
 static void
@@ -902,7 +1175,7 @@ render_block(
 {
     struct block_content content = {0};
 
-    if (!renderers[context->kind](context, &content)) {
+    if (!render_visible(context, &content)) {
         return;
     }
 

@@ -15,12 +15,18 @@ writes the status line protocol (*swaybar-protocol*(7)) to standard output
 and reads the bar's click events from standard input. It ends when the bar
 closes either.
 
-Blocks: network and internet reachability (NetworkManager), traffic of the
+Blocks: windows asking for attention (from the compositor), network and
+internet reachability (NetworkManager), traffic of the
 main connection, Bluetooth (BlueZ), processor use, processor temperature,
 memory, disk space, volume (PulseAudio protocol, as served by PipeWire),
 brightness, power profile (power-profiles-daemon), battery (UPower),
-keyboard layout (from the compositor through _$SWAYSOCK_) and clock. A block
-whose source is missing is hidden.
+keyboard layout (from the compositor through _$SWAYSOCK_), clock and the
+latest notification of *desktop-shell-notification-daemon*(1), on the
+session bus. A block whose source is missing is hidden.
+
+A new notification is shown on the accent background for a few seconds,
+then in the unread color until it is read; critical ones use the bar's
+urgent colors at first. There are no popups.
 
 Services report their changes; processor, temperature, memory, disk,
 traffic and brightness are read on a timer at each block's interval. A line
@@ -54,12 +60,13 @@ lists every setting with its default. All are optional; *swaymsg reload*
 restarts the status command and applies changes.
 
 *[status]*
-	*blocks* = block names, left to right++
-	*text-color*, *warning-color* = _#rrggbb_++
+	*order* = block names, left to right++
+	*text-color*, *warning-color*, *accent-color*, *accent-text-color*,
+	*unread-color*, *critical-color*, *quiet-color* = _#rrggbb_++
 	*separator-width* = _0-100_++
 	*pad-numbers* = _true_|_false_
 
-Each block has a group named after it (*network*, *traffic*, *bluetooth*,
+Each block has a group named after it (*attention*, *notifications*, *network*, *traffic*, *bluetooth*,
 *processor*, *temperature*, *memory*, *disk*, *volume*, *brightness*,
 *power-profile*, *battery*, *keyboard-layout*, *clock*) with:
 
@@ -69,10 +76,14 @@ Each block has a group named after it (*network*, *traffic*, *bluetooth*,
 	*left-click*, *middle-click*, *right-click*, *scroll-up*, *scroll-down* =
 	a built-in action (*toggle-mute*, *volume-up*, *volume-down*,
 	*brightness-up*, *brightness-down*, *next-power-profile*,
-	*toggle-bluetooth*, *toggle-format*), a command run without a shell, or
-	nothing
+	*toggle-bluetooth*, *toggle-format*, *activate-notification*,
+	*mark-notifications-read*, *toggle-do-not-disturb*,
+	*focus-urgent-window*), a command run without a shell, or nothing
 
-Also *[disk] path*, *[temperature] sensor* (a hwmon driver name),
+An empty format hides the block in that state.
+
+Also *[notifications] width*, *new-notification-emphasis-seconds* and
+*show-when-empty*, *[disk] path*, *[temperature] sensor* (a hwmon driver name),
 *[volume] step* and *[brightness] step*. The clock's formats are
 strftime-style, see *g_date_time_format*(3).
 

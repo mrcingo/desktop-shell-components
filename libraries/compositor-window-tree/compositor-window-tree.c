@@ -209,6 +209,7 @@ parse_window(
         .title_bar_width             = lookup_title_bar_width(window_node),
         .toplevel_capture_identifier = g_strdup(typed_json_lookup_string_member(window_node, "foreign_toplevel_identifier")),
         .has_keyboard_focus          = typed_json_lookup_boolean_member(window_node, "focused", false),
+        .is_urgent                   = typed_json_lookup_boolean_member(window_node, "urgent", false),
     };
 
     return window;

@@ -26,6 +26,21 @@ struct block_description {
     unsigned                     interval_seconds; // 0 for blocks that are told about changes
 };
 
+/* An empty format hides the block in that state. */
+static const struct format_default notification_formats[] = {
+    {"format-unread",         "{text}{more}{dnd}"},
+    {"format-read",           "0"                },
+    {"format-do-not-disturb", "DND"              },
+    {"format-unavailable",    "NOTIF off"        },
+    {NULL,                    NULL               },
+};
+
+static const struct format_default attention_formats[] = {
+    {"format",      "ATTN {count}"},
+    {"format-none", ""            },
+    {NULL,          NULL          },
+};
+
 static const struct format_default network_formats[] = {
     {"format-wifi",         "WIFI {name} {signal}%{vpn}"},
     {"format-ethernet",     "ETH {name}{vpn}"           },
@@ -105,26 +120,33 @@ static const struct format_default clock_formats[] = {
 
 /* In the order of enum system_status_line_block_kind. Mouse actions: left, middle, right, scroll up, scroll down. */
 static const struct block_description block_descriptions[SYSTEM_STATUS_LINE_BLOCK_KIND_COUNT] = {
-    {"network",         network_formats,         {"nm-connection-editor", "", "", "", ""},                       -1, -1, 0 },
-    {"traffic",         traffic_formats,         {"", "", "", "", ""},                                           -1, -1, 2 },
-    {"bluetooth",       bluetooth_formats,       {"toggle-bluetooth", "", "", "", ""},                           -1, -1, 0 },
-    {"processor",       processor_formats,       {"", "", "", "", ""},                                           80, 95, 2 },
-    {"temperature",     temperature_formats,     {"", "", "", "", ""},                                           80, 90, 5 },
-    {"memory",          memory_formats,          {"", "", "", "", ""},                                           80, 95, 5 },
-    {"disk",            disk_formats,            {"", "", "", "", ""},                                           15, 5,  30},
-    {"volume",          volume_formats,          {"toggle-mute", "", "pavucontrol", "volume-up", "volume-down"}, -1, -1, 0 },
-    {"brightness",      brightness_formats,      {"", "", "", "brightness-up", "brightness-down"},               -1, -1, 2 },
-    {"power-profile",   power_profile_formats,   {"next-power-profile", "", "", "", ""},                         -1, -1, 0 },
-    {"battery",         battery_formats,         {"", "", "", "", ""},                                           20, 10, 0 },
-    {"keyboard-layout", keyboard_layout_formats, {"", "", "", "", ""},                                           -1, -1, 0 },
-    {"clock",           clock_formats,           {"toggle-format", "", "", "", ""},                              -1, -1, 0 },
+    {"notifications",
+     notification_formats,                       {"activate-notification", "mark-notifications-read", "toggle-do-not-disturb", "", ""},
+     -1,
+     -1,
+     0                                                                                                                                            },
+    {"attention",       attention_formats,       {"focus-urgent-window", "", "", "", ""},                                               -1, -1, 0 },
+    {"network",         network_formats,         {"nm-connection-editor", "", "", "", ""},                                              -1, -1, 0 },
+    {"traffic",         traffic_formats,         {"", "", "", "", ""},                                                                  -1, -1, 2 },
+    {"bluetooth",       bluetooth_formats,       {"toggle-bluetooth", "", "", "", ""},                                                  -1, -1, 0 },
+    {"processor",       processor_formats,       {"", "", "", "", ""},                                                                  80, 95, 2 },
+    {"temperature",     temperature_formats,     {"", "", "", "", ""},                                                                  80, 90, 5 },
+    {"memory",          memory_formats,          {"", "", "", "", ""},                                                                  80, 95, 5 },
+    {"disk",            disk_formats,            {"", "", "", "", ""},                                                                  15, 5,  30},
+    {"volume",          volume_formats,          {"toggle-mute", "", "pavucontrol", "volume-up", "volume-down"},                        -1, -1, 0 },
+    {"brightness",      brightness_formats,      {"", "", "", "brightness-up", "brightness-down"},                                      -1, -1, 2 },
+    {"power-profile",   power_profile_formats,   {"next-power-profile", "", "", "", ""},                                                -1, -1, 0 },
+    {"battery",         battery_formats,         {"", "", "", "", ""},                                                                  20, 10, 0 },
+    {"keyboard-layout", keyboard_layout_formats, {"", "", "", "", ""},                                                                  -1, -1, 0 },
+    {"clock",           clock_formats,           {"toggle-format", "", "", "", ""},                                                     -1, -1, 0 },
 };
 
 static const char *const mouse_action_keys[SYSTEM_STATUS_LINE_MOUSE_SLOT_COUNT] =
     {"left-click", "middle-click", "right-click", "scroll-up", "scroll-down"};
 
-static const char default_block_order[] = "network traffic bluetooth processor temperature memory disk volume brightness "
-                                          "power-profile battery keyboard-layout clock";
+static const char
+    default_block_order[] = "attention network traffic bluetooth processor temperature memory disk volume brightness "
+                            "power-profile battery keyboard-layout clock notifications";
 
 enum {
     LARGEST_THRESHOLD        = 1000,
@@ -137,15 +159,23 @@ static const char *const common_block_keys[] =
 
 /* Keys that only one group accepts. */
 static const struct program_configuration_key special_keys[] = {
-    {"status",      "blocks"         },
-    {"status",      "separator-width"},
-    {"status",      "text-color"     },
-    {"status",      "warning-color"  },
-    {"status",      "pad-numbers"    },
-    {"disk",        "path"           },
-    {"temperature", "sensor"         },
-    {"volume",      "step"           },
-    {"brightness",  "step"           },
+    {"status",        "order"                            },
+    {"status",        "separator-width"                  },
+    {"status",        "text-color"                       },
+    {"status",        "warning-color"                    },
+    {"status",        "pad-numbers"                      },
+    {"status",        "accent-color"                     },
+    {"status",        "accent-text-color"                },
+    {"notifications", "width"                            },
+    {"notifications", "new-notification-emphasis-seconds"},
+    {"notifications", "show-when-empty"                  },
+    {"status",        "quiet-color"                      },
+    {"status",        "unread-color"                     },
+    {"status",        "critical-color"                   },
+    {"disk",          "path"                             },
+    {"temperature",   "sensor"                           },
+    {"volume",        "step"                             },
+    {"brightness",    "step"                             },
 };
 
 const char *
@@ -182,7 +212,7 @@ add_shown_block(
     enum system_status_line_block_kind kind = 0;
 
     if (!find_kind_by_name(name, &kind)) {
-        g_warning("[status] blocks: there is no block named \"%s\"", name);
+        g_warning("[status] order: there is no block named \"%s\"", name);
         return;
     }
 
@@ -200,7 +230,7 @@ read_block_order(
     struct program_configuration_file  *configuration
 )
 {
-    g_autofree char *order_text = program_configuration_file_read_text(configuration, "status", "blocks", default_block_order);
+    g_autofree char *order_text = program_configuration_file_read_text(configuration, "status", "order", default_block_order);
     g_auto(GStrv)    names      = g_strsplit_set(order_text, " ,\t", -1);
 
     for (char **name = names; *name != NULL; name++) {
@@ -342,13 +372,52 @@ read_color(
 }
 
 static void
+read_notification_colors(
+    struct system_status_line_settings *settings,
+    struct program_configuration_file  *configuration
+)
+{
+    settings->quiet_color    = read_color(configuration, "quiet-color", "#808080");
+    settings->unread_color   = read_color(configuration, "unread-color", "#5fafd7");
+    settings->critical_color = read_color(configuration, "critical-color", "#ff5f5f");
+}
+
+static void
+read_notification_settings(
+    struct system_status_line_settings *settings,
+    struct program_configuration_file  *configuration
+)
+{
+    settings->notification_width = program_configuration_file_read_integer(configuration, "notifications", "width", 50, 4, 500);
+    settings->new_notification_emphasis_seconds = program_configuration_file_read_integer(
+        configuration,
+        "notifications",
+        "new-notification-emphasis-seconds",
+        4,
+        0,
+        60
+    );
+    settings->shows_empty_notifications = program_configuration_file_read_boolean(
+        configuration,
+        "notifications",
+        "show-when-empty",
+        true
+    );
+}
+
+static void
 read_appearance(
     struct system_status_line_settings *settings,
     struct program_configuration_file  *configuration
 )
 {
-    settings->text_color      = read_color(configuration, "text-color", "#bbbbbb");
-    settings->warning_color   = read_color(configuration, "warning-color", "#e0b040");
+    settings->text_color        = read_color(configuration, "text-color", "#bbbbbb");
+    settings->warning_color     = read_color(configuration, "warning-color", "#e0b040");
+    settings->accent_color      = read_color(configuration, "accent-color", "#005577");
+    settings->accent_text_color = read_color(configuration, "accent-text-color", "#eeeeee");
+
+    read_notification_colors(settings, configuration);
+
     settings->separator_width = program_configuration_file_read_integer(configuration, "status", "separator-width", 15, 0, 100);
     settings->pads_numbers    = program_configuration_file_read_boolean(configuration, "status", "pad-numbers", true);
 }
@@ -359,6 +428,8 @@ read_block_specific_settings(
     struct program_configuration_file  *configuration
 )
 {
+    read_notification_settings(settings, configuration);
+
     settings->disk_path               = program_configuration_file_read_text(configuration, "disk", "path", "/");
     settings->temperature_sensor_name = program_configuration_file_read_text(configuration, "temperature", "sensor", "k10temp");
     settings->volume_step_percent     = program_configuration_file_read_integer(configuration, "volume", "step", 5, 1, 50);
@@ -440,12 +511,25 @@ free_block(
 }
 
 static void
+free_notification_colors(
+    struct system_status_line_settings *settings
+)
+{
+    g_free(settings->quiet_color);
+    g_free(settings->unread_color);
+    g_free(settings->critical_color);
+}
+
+static void
 free_texts(
     struct system_status_line_settings *settings
 )
 {
     g_free(settings->text_color);
     g_free(settings->warning_color);
+    g_free(settings->accent_color);
+    g_free(settings->accent_text_color);
+    free_notification_colors(settings);
     g_free(settings->disk_path);
     g_free(settings->temperature_sensor_name);
 }

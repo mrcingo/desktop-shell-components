@@ -24,6 +24,7 @@ struct compositor_window {
 
     char *toplevel_capture_identifier; // NULL if the compositor has none
     bool  has_keyboard_focus;
+    bool  is_urgent; // the window asked for attention
 };
 
 struct compositor_output {

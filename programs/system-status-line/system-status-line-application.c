@@ -6,7 +6,9 @@
 
 #include "audio-volume-control.h"
 #include "clock-boundary-timing.h"
+#include "compositor-attention-requests.h"
 #include "compositor-keyboard-layout-follower.h"
+#include "notification-center-status.h"
 #include "polled-system-readings.h"
 #include "status-bar-block-encoding.h"
 #include "status-bar-click-decoding.h"
@@ -31,7 +33,14 @@ struct system_status_line_application {
     struct system_service_readings             *service_readings;
     struct audio_volume_control                *volume_control;    // NULL when the volume is not shown
     struct compositor_keyboard_layout_follower *keyboard_follower; // NULL when the layout is not shown
+    struct notification_center_status          *notifications;     // NULL when notifications are not shown
+    struct compositor_attention_requests       *attention;         // NULL when attention is not shown
 
+    /* A new notification is emphasized for a few seconds by one one-shot timer. */
+    guint             emphasis_source;
+    bool              emphasizes_new_notification;
+    uint32_t          seen_unread_count;
+    char             *seen_latest_text;
     GDataInputStream *click_input;
     GCancellable     *click_cancellable;
     guint             clock_source;
@@ -92,6 +101,30 @@ keyboard_layout_of(
     return compositor_keyboard_layout_follower_get_layout_name(application->keyboard_follower);
 }
 
+static const struct notification_center_state *
+notification_state_of(
+    const struct system_status_line_application *application
+)
+{
+    if (application->notifications == NULL) {
+        return NULL;
+    }
+
+    return notification_center_status_get_state(application->notifications);
+}
+
+static int
+attention_count_of(
+    const struct system_status_line_application *application
+)
+{
+    if (application->attention == NULL) {
+        return -1;
+    }
+
+    return compositor_attention_requests_get_count(application->attention);
+}
+
 static char *
 render_current_line(
     const struct system_status_line_application *application
@@ -104,6 +137,9 @@ render_current_line(
         .service_values               = system_service_readings_get_values(application->service_readings),
         .volume                       = volume_state_of(application),
         .keyboard_layout              = keyboard_layout_of(application),
+        .notifications                = notification_state_of(application),
+        .attention_count              = attention_count_of(application),
+        .emphasizes_new_notification  = application->emphasizes_new_notification,
         .now                          = now,
         .clock_shows_alternate_format = application->clock_shows_alternate_format,
     };
@@ -318,18 +354,62 @@ toggle_clock_format(
     write_status_line(application);
 }
 
+static void
+activate_notification(
+    struct system_status_line_application *application
+)
+{
+    if (application->notifications != NULL) {
+        notification_center_activate_latest(application->notifications);
+    }
+}
+
+static void
+mark_notifications_read(
+    struct system_status_line_application *application
+)
+{
+    if (application->notifications != NULL) {
+        notification_center_mark_all_read(application->notifications);
+    }
+}
+
+static void
+toggle_do_not_disturb(
+    struct system_status_line_application *application
+)
+{
+    if (application->notifications != NULL) {
+        notification_center_toggle_do_not_disturb(application->notifications);
+    }
+}
+
+static void
+focus_urgent_window(
+    struct system_status_line_application *application
+)
+{
+    if (application->attention != NULL) {
+        compositor_attention_requests_focus_latest(application->attention);
+    }
+}
+
 static const struct {
     const char *action_name;
     void (*perform)(struct system_status_line_application *application);
 } built_in_actions[] = {
-    {"toggle-mute",        toggle_mute         },
-    {"volume-up",          raise_volume        },
-    {"volume-down",        lower_volume        },
-    {"brightness-up",      raise_brightness    },
-    {"brightness-down",    lower_brightness    },
-    {"next-power-profile", switch_power_profile},
-    {"toggle-bluetooth",   toggle_bluetooth    },
-    {"toggle-format",      toggle_clock_format },
+    {"toggle-mute",             toggle_mute            },
+    {"volume-up",               raise_volume           },
+    {"volume-down",             lower_volume           },
+    {"brightness-up",           raise_brightness       },
+    {"brightness-down",         lower_brightness       },
+    {"next-power-profile",      switch_power_profile   },
+    {"toggle-bluetooth",        toggle_bluetooth       },
+    {"toggle-format",           toggle_clock_format    },
+    {"activate-notification",   activate_notification  },
+    {"mark-notifications-read", mark_notifications_read},
+    {"toggle-do-not-disturb",   toggle_do_not_disturb  },
+    {"focus-urgent-window",     focus_urgent_window    },
 };
 
 /* A built-in action by name, anything else is a command; empty does nothing. */
@@ -544,6 +624,103 @@ static const struct compositor_keyboard_layout_follower_handler keyboard_handler
     .handle_layout_changed = handle_layout_changed,
 };
 
+static gboolean
+end_emphasis(
+    void *user_data
+)
+{
+    struct system_status_line_application *application = user_data;
+
+    application->emphasis_source             = 0;
+    application->emphasizes_new_notification = false;
+
+    write_status_line(application);
+
+    return G_SOURCE_REMOVE;
+}
+
+/* One one-shot timer; a newer notification starts the seconds over. */
+static void
+start_emphasis(
+    struct system_status_line_application *application
+)
+{
+    unsigned emphasis_seconds = (unsigned)application->settings->new_notification_emphasis_seconds;
+
+    if (emphasis_seconds == 0) {
+        return;
+    }
+
+    g_clear_handle_id(&application->emphasis_source, g_source_remove);
+
+    application->emphasizes_new_notification = true;
+    application->emphasis_source             = g_timeout_add_seconds(emphasis_seconds, end_emphasis, application);
+}
+
+/* More unread than before, or another latest text while some are unread; never during do-not-disturb. */
+static bool
+is_new_arrival(
+    const struct system_status_line_application *application,
+    const struct notification_center_state      *state
+)
+{
+    if (state->does_not_disturb) {
+        return false;
+    }
+
+    if (state->unread_count > application->seen_unread_count) {
+        return true;
+    }
+
+    return state->unread_count > 0 && g_strcmp0(state->latest_text, application->seen_latest_text) != 0;
+}
+
+static void
+remember_notifications(
+    struct system_status_line_application  *application,
+    const struct notification_center_state *state
+)
+{
+    application->seen_unread_count = state->unread_count;
+
+    g_free(application->seen_latest_text);
+
+    application->seen_latest_text = g_strdup(state->latest_text);
+}
+
+static void
+handle_notifications_changed(
+    void                                   *user_data,
+    const struct notification_center_state *state
+)
+{
+    struct system_status_line_application *application = user_data;
+
+    if (is_new_arrival(application, state)) {
+        start_emphasis(application);
+    }
+
+    remember_notifications(application, state);
+    write_status_line(application);
+}
+
+static const struct notification_center_status_handler notifications_handler = {
+    .handle_state_changed = handle_notifications_changed,
+};
+
+static void
+handle_attention_count_changed(
+    void *user_data,
+    int   urgent_window_count
+)
+{
+    write_status_line(user_data);
+}
+
+static const struct compositor_attention_requests_handler attention_handler = {
+    .handle_count_changed = handle_attention_count_changed,
+};
+
 /* Which polled reading each block needs, in the order of enum polled_system_reading. */
 static const enum system_status_line_block_kind polled_reading_blocks[POLLED_SYSTEM_READING_KIND_COUNT] = {
     SYSTEM_STATUS_LINE_BLOCK_PROCESSOR,
@@ -662,15 +839,65 @@ start_keyboard_follower(
 }
 
 static void
+start_notifications(
+    struct system_status_line_application *application
+)
+{
+    if (system_status_line_settings_shows(application->settings, SYSTEM_STATUS_LINE_BLOCK_NOTIFICATIONS)) {
+        application->notifications = notification_center_status_create(&notifications_handler, application);
+    }
+}
+
+/* Without the compositor's socket the attention block stays hidden. */
+static void
+start_attention(
+    struct system_status_line_application *application
+)
+{
+    const char *socket_path = application->options->compositor_socket_path;
+
+    if (socket_path == NULL) {
+        return;
+    }
+
+    if (!system_status_line_settings_shows(application->settings, SYSTEM_STATUS_LINE_BLOCK_ATTENTION)) {
+        return;
+    }
+
+    application->attention = compositor_attention_requests_connect(socket_path, &attention_handler, application, NULL);
+}
+
+static void
 start_sources(
     struct system_status_line_application *application
 )
 {
+    start_notifications(application);
+    start_attention(application);
     start_polled_readings(application);
     start_service_readings(application);
     start_volume_control(application);
     start_keyboard_follower(application);
     schedule_clock(application);
+}
+
+static void
+stop_input_and_timers(
+    struct system_status_line_application *application
+)
+{
+    g_cancellable_cancel(application->click_cancellable);
+    g_clear_handle_id(&application->clock_source, g_source_remove);
+    g_clear_handle_id(&application->emphasis_source, g_source_remove);
+}
+
+static void
+stop_attention_sources(
+    struct system_status_line_application *application
+)
+{
+    notification_center_status_destroy(application->notifications);
+    compositor_attention_requests_destroy(application->attention);
 }
 
 /* Sources go first: their callbacks point at the application. */
@@ -679,8 +906,8 @@ stop_everything(
     struct system_status_line_application *application
 )
 {
-    g_cancellable_cancel(application->click_cancellable);
-    g_clear_handle_id(&application->clock_source, g_source_remove);
+    stop_input_and_timers(application);
+    stop_attention_sources(application);
     compositor_keyboard_layout_follower_destroy(application->keyboard_follower);
     audio_volume_control_destroy(application->volume_control);
     system_service_readings_destroy(application->service_readings);
@@ -697,6 +924,7 @@ free_everything(
     g_main_loop_unref(application->main_loop);
     system_status_line_settings_destroy(application->settings);
     g_free(application->last_written_line);
+    g_free(application->seen_latest_text);
 }
 
 static void

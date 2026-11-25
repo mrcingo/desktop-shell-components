@@ -21,6 +21,7 @@ test_blocks_are_encoded(void)
         {.name               = "battery",
          .full_text          = "<b>9%</b>",
          .color              = "#ff0000",
+         .background         = "#005577",
          .minimum_width_text = "100%",
          .is_urgent          = true,
          .uses_markup        = true},
@@ -31,7 +32,8 @@ test_blocks_are_encoded(void)
         line,
         ==,
         "[{\"name\":\"network\",\"full_text\":\"Caf\303\251 \\\"free\\\" \\\\\",\"urgent\":false,\"separator_block_width\":13},"
-        "{\"name\":\"battery\",\"full_text\":\"<b>9%</b>\",\"color\":\"#ff0000\",\"min_width\":\"100%\",\"urgent\":true,"
+        "{\"name\":\"battery\",\"full_text\":\"<b>9%</"
+        "b>\",\"color\":\"#ff0000\",\"background\":\"#005577\",\"min_width\":\"100%\",\"urgent\":true,"
         "\"separator_block_width\":0,\"markup\":\"pango\"}],\n"
     );
 }

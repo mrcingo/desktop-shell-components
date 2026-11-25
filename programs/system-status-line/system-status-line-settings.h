@@ -15,6 +15,8 @@
  */
 
 enum system_status_line_block_kind {
+    SYSTEM_STATUS_LINE_BLOCK_NOTIFICATIONS,
+    SYSTEM_STATUS_LINE_BLOCK_ATTENTION,
     SYSTEM_STATUS_LINE_BLOCK_NETWORK,
     SYSTEM_STATUS_LINE_BLOCK_TRAFFIC,
     SYSTEM_STATUS_LINE_BLOCK_BLUETOOTH,
@@ -54,13 +56,21 @@ struct system_status_line_settings {
     size_t                                   shown_block_count;
     struct system_status_line_block_settings blocks[SYSTEM_STATUS_LINE_BLOCK_KIND_COUNT];
 
-    char *text_color;    // "#rrggbb", values in their normal state
-    char *warning_color; // values past their warning threshold
+    char *text_color;        // "#rrggbb", values in their normal state
+    char *warning_color;     // values past their warning threshold
+    char *accent_color;      // background of blocks that want a look, such as unread notifications
+    char *accent_text_color; // their text
+    char *quiet_color;       // markers that only hold a place, such as "0" notifications
+    char *unread_color;      // unread notifications after their first seconds
+    char *critical_color;    // unread critical notifications after their first seconds
     int   separator_width;
     bool  pads_numbers; // numbers keep a fixed width so blocks do not move
 
-    char *disk_path;               // the filesystem whose space is shown
-    char *temperature_sensor_name; // hwmon driver name
+    int   notification_width;                // characters of the latest notification shown
+    int   new_notification_emphasis_seconds; // 0: a new notification is not emphasized
+    bool  shows_empty_notifications;         // the quiet marker while nothing is unread
+    char *disk_path;                         // the filesystem whose space is shown
+    char *temperature_sensor_name;           // hwmon driver name
     int   volume_step_percent;
     int   brightness_step_percent;
 };

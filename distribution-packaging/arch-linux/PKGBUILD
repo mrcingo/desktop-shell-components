@@ -137,6 +137,7 @@ package_desktop-shell-system-status-line() {
         'upower: battery'
         'power-profiles-daemon: power profile'
         'bluez: Bluetooth'
+        'desktop-shell-notification-daemon: notifications in the bar'
     )
     backup=(etc/xdg/desktop-shell-components/system-status-line.ini)
     install=desktop-shell-system-status-line.install

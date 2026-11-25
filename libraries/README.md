@@ -55,10 +55,12 @@ Each library does one job. A library only uses the ones above it.
 | `power-profile-status`            | The power profile, and switching to the next one                 |
 | `battery-charge-status`           | Battery charge, state and time left                              |
 | `system-service-readings`         | The four services above, read again only when they change        |
+| `notification-center-status`      | Unread notifications and do-not-disturb, from the notification daemon |
 | `audio-volume-control`            | Volume and mute of the default output, as they change            |
 | `keyboard-layout-short-names`     | "es" for "Spanish", from the XKB rules                           |
 | `compositor-keyboard-layout`      | The active keyboard layout in sway's replies and events          |
 | `compositor-keyboard-layout-follower` | Follow the keyboard layout through sway's IPC                |
+| `compositor-attention-requests`   | Windows asking for attention, and focusing the latest            |
 | `status-bar-block-encoding`       | Write swaybar's status line protocol                             |
 | `status-bar-click-decoding`       | Read swaybar's click events                                      |
 | `clock-boundary-timing`           | Wake a clock exactly when the shown time changes                 |

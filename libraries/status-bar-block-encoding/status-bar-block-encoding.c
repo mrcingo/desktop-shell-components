@@ -46,16 +46,26 @@ add_flags(
 }
 
 static void
+add_texts(
+    JsonBuilder                   *builder,
+    const struct status_bar_block *block
+)
+{
+    add_optional_text(builder, "name", block->name);
+    add_optional_text(builder, "full_text", block->full_text);
+    add_optional_text(builder, "color", block->color);
+    add_optional_text(builder, "background", block->background);
+    add_optional_text(builder, "min_width", block->minimum_width_text);
+}
+
+static void
 add_block(
     JsonBuilder                   *builder,
     const struct status_bar_block *block
 )
 {
     json_builder_begin_object(builder);
-    add_optional_text(builder, "name", block->name);
-    add_optional_text(builder, "full_text", block->full_text);
-    add_optional_text(builder, "color", block->color);
-    add_optional_text(builder, "min_width", block->minimum_width_text);
+    add_texts(builder, block);
     add_flags(builder, block);
     json_builder_end_object(builder);
 }

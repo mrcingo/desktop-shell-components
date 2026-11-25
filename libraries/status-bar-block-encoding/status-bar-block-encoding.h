@@ -14,6 +14,7 @@ struct status_bar_block {
     const char *name;                  // reported back in click events
     const char *full_text;             // Pango markup when uses_markup
     const char *color;                 // "#rrggbb", or NULL for the bar's text color
+    const char *background;            // "#rrggbb", or NULL for the bar's background
     const char *minimum_width_text;    // the block is at least as wide as this text; NULL for none
     int         separator_block_width; // pixels after the block
     bool        is_urgent;             // drawn in the bar's urgent colors
