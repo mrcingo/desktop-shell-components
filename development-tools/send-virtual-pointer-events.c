@@ -5,6 +5,7 @@
  *
  *   move:X,Y      move to pixel X,Y of a 1920x1200 layout (the test output)
  *   left-click    press and release the left button
+ *   middle-click  press and release the middle button
  *   right-click   press and release the right button
  *   wait          do nothing for one step
  *
@@ -31,8 +32,9 @@ enum {
     BUTTON_STATE_PRESSED          = 1,
 
     /* Linux input event codes, which Wayland button events carry. */
-    BUTTON_CODE_LEFT  = 0x110,
-    BUTTON_CODE_RIGHT = 0x111,
+    BUTTON_CODE_LEFT   = 0x110,
+    BUTTON_CODE_RIGHT  = 0x111,
+    BUTTON_CODE_MIDDLE = 0x112,
 };
 
 struct virtual_pointer_user {
@@ -112,8 +114,9 @@ static const struct {
     const char *step;
     uint32_t    button_code;
 } click_steps[] = {
-    {"left-click",  BUTTON_CODE_LEFT },
-    {"right-click", BUTTON_CODE_RIGHT},
+    {"left-click",   BUTTON_CODE_LEFT  },
+    {"middle-click", BUTTON_CODE_MIDDLE},
+    {"right-click",  BUTTON_CODE_RIGHT },
 };
 
 /* Returns false when the step is not a click. */

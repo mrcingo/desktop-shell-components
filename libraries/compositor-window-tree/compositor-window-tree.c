@@ -305,6 +305,7 @@ parse_window(
         .is_sticky                   = typed_json_lookup_boolean_member(window_node, "sticky", false),
         .is_x11_window               = g_strcmp0(typed_json_lookup_string_member(window_node, "shell"), "xwayland") == 0,
         .marks                       = copy_marks(window_node),
+        .is_urgent                   = typed_json_lookup_boolean_member(window_node, "urgent", false),
     };
 
     return window;

@@ -26,6 +26,7 @@ enum compositor_ipc_request_type {
     COMPOSITOR_IPC_REQUEST_GET_WINDOW_TREE     = 4,
     COMPOSITOR_IPC_REQUEST_GET_BAR_CONFIG      = 6,
     COMPOSITOR_IPC_REQUEST_GET_CONFIGURATION   = 9,
+    COMPOSITOR_IPC_REQUEST_GET_INPUTS          = 100,
 };
 
 /* Macros, as C11 enumerators cannot exceed INT_MAX. */
@@ -35,6 +36,7 @@ enum compositor_ipc_request_type {
 #define COMPOSITOR_IPC_EVENT_WINDOW_CHANGED           UINT32_C(0x80000003)
 #define COMPOSITOR_IPC_EVENT_KEY_BINDING_TRIGGERED    UINT32_C(0x80000005)
 #define COMPOSITOR_IPC_EVENT_COMPOSITOR_SHUTTING_DOWN UINT32_C(0x80000006)
+#define COMPOSITOR_IPC_EVENT_INPUT_CHANGED            UINT32_C(0x80000015)
 
 extern const struct framed_message_format compositor_ipc_message_format;
 

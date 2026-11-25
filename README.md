@@ -15,6 +15,7 @@ colors and font from your sway bar, or from your GTK theme.
 | [window switcher](programs/window-switcher)              | Alt+Tab with live previews                        |
 | [window title format](programs/window-title-format)     | the process ID in each window's title bar         |
 | [window menu](programs/window-context-menu)              | right-click a title bar: force close, copy PID... |
+| [system status line](programs/system-status-line)       | network, battery, CPU, memory and more in the bar |
 | [login greeter](programs/login-greeter)                  | a login screen for greetd                         |
 
 ## Install

@@ -32,6 +32,7 @@ struct compositor_window {
     bool   is_sticky;
     bool   is_x11_window; // its process_id is then the X server's, shared by every X11 window
     char **marks;         // never NULL; may be empty
+    bool   is_urgent;     // the window asked for attention
 };
 
 struct compositor_output {
