@@ -16,6 +16,10 @@
 static const char command_prefix[] = "nop desktop-shell-window-snap ";
 static const char target_mark[]    = "_window-snap-target";
 
+/* The binding mode of the drop-in, whose Escape binding cancels a drag. */
+static const char enter_drag_mode_command[] = "mode \"desktop-shell-window-snap\"";
+static const char leave_drag_mode_command[] = "mode default";
+
 /* What a snapped window goes back to when it is restored. */
 struct snap_record {
     enum window_snap_state      state;
@@ -33,6 +37,7 @@ struct drag_session {
     struct compositor_rectangle  workspace_area;
     struct window_snap_overlay  *overlay;
     bool                         holds_cursor_press; // the overlay was given a press, to be released at the end
+    bool                         is_in_drag_mode;    // the compositor's drag binding mode is active
     bool                         has_start;
     bool                         is_dragging;
     double                       start_x; // layout pixels
@@ -552,6 +557,19 @@ release_cursor_press(
     run_command(snap, "seat - cursor release button1");
 }
 
+static void
+leave_drag_mode(
+    struct window_snap_application *snap,
+    const struct drag_session      *session
+)
+{
+    if (!session->is_in_drag_mode) {
+        return;
+    }
+
+    run_command(snap, leave_drag_mode_command);
+}
+
 /*
  * The overlay goes first, so that focus and placement commands sent after
  * it are not undone by the compositor giving the keyboard back. Returns the
@@ -566,6 +584,7 @@ close_session(
 
     g_clear_pointer(&session->overlay, window_snap_overlay_destroy);
     release_cursor_press(snap, session);
+    leave_drag_mode(snap, session);
 
     return session;
 }
@@ -679,10 +698,11 @@ start_dragging_beyond_threshold(
         return;
     }
 
-    session->is_dragging = true;
+    session->is_dragging     = true;
+    session->is_in_drag_mode = true;
 
     prepare_scene(snap, session);
-    window_snap_overlay_take_keyboard(session->overlay);
+    run_command(snap, enter_drag_mode_command);
 }
 
 static void
@@ -1052,20 +1072,40 @@ handle_release(
     }
 }
 
+/* Escape, through the drag mode's binding. */
+static void
+cancel_drag(
+    struct window_snap_application *snap
+)
+{
+    if (snap->session == NULL) {
+        return;
+    }
+
+    handle_cancelled(snap);
+}
+
+/* Words of the title bar bindings; any other word snaps the focused window from the keyboard. */
+static const struct {
+    const char *word;
+    void (*handle)(struct window_snap_application *snap);
+} binding_words[] = {
+    {"press",   handle_press  },
+    {"release", handle_release},
+    {"cancel",  cancel_drag   },
+};
+
 static void
 handle_word(
     struct window_snap_application *snap,
     const char                     *word
 )
 {
-    if (g_strcmp0(word, "press") == 0) {
-        handle_press(snap);
-        return;
-    }
-
-    if (g_strcmp0(word, "release") == 0) {
-        handle_release(snap);
-        return;
+    for (size_t i = 0; i < G_N_ELEMENTS(binding_words); i++) {
+        if (g_strcmp0(word, binding_words[i].word) == 0) {
+            binding_words[i].handle(snap);
+            return;
+        }
     }
 
     snap_focused_window(snap, word);

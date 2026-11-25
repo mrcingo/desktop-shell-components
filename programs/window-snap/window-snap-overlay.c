@@ -202,25 +202,6 @@ handle_button_release(
     return GDK_EVENT_STOP;
 }
 
-/* Keys go to the window, not to the drawing area, so the window listens for Escape. */
-static gboolean
-handle_key_pressed(
-    GtkEventControllerKey *controller,
-    guint                  keyval,
-    guint                  keycode,
-    GdkModifierType        state,
-    gpointer               user_data
-)
-{
-    struct window_snap_overlay *overlay = user_data;
-
-    if (keyval == GDK_KEY_Escape) {
-        overlay->handler->handle_cancelled(overlay->user_data);
-    }
-
-    return GDK_EVENT_STOP;
-}
-
 static bool
 is_pointer_position_event(
     GdkEventType event_type
@@ -265,7 +246,7 @@ handle_event(
     return dispatch_event(overlay, event, event_type);
 }
 
-/* Keyboard focus is only taken once a drag starts, so a plain click changes no focus. */
+/* The overlay never takes the keyboard, so applications keep focus; Escape is a compositor binding. */
 static GtkWindow *
 create_overlay_window(
     GtkApplication *application,
@@ -278,7 +259,7 @@ create_overlay_window(
         .monitor           = monitor,
         .anchored_edges    = LAYER_SHELL_WINDOW_ALL_EDGES,
         .space_reservation = LAYER_SHELL_WINDOW_IGNORE_OTHER_RESERVATIONS,
-        .keyboard_mode     = GTK_LAYER_SHELL_KEYBOARD_MODE_EXCLUSIVE,
+        .keyboard_mode     = GTK_LAYER_SHELL_KEYBOARD_MODE_NONE,
     };
 
     GtkWindow *window = layer_shell_window_create(application, &options);
@@ -352,22 +333,10 @@ hide_then_destroy_window(
 }
 
 static void
-listen_for_escape(
-    struct window_snap_overlay *overlay
-)
-{
-    GtkEventController *keys = gtk_event_controller_key_new();
-
-    g_signal_connect(keys, "key-pressed", G_CALLBACK(handle_key_pressed), overlay);
-    gtk_widget_add_controller(GTK_WIDGET(overlay->window), keys);
-}
-
-static void
 show_overlay(
     struct window_snap_overlay *overlay
 )
 {
-    listen_for_escape(overlay);
     g_signal_connect(overlay->window, "map", G_CALLBACK(wait_until_shown), overlay);
     gtk_window_set_child(overlay->window, overlay->drawing_area);
     gtk_window_present(overlay->window);
@@ -430,12 +399,4 @@ window_snap_overlay_show_preview(
     overlay->label = g_strdup(label);
 
     gtk_widget_queue_draw(overlay->drawing_area);
-}
-
-void
-window_snap_overlay_take_keyboard(
-    struct window_snap_overlay *overlay
-)
-{
-    gtk_layer_set_keyboard_mode(overlay->window, GTK_LAYER_SHELL_KEYBOARD_MODE_EXCLUSIVE);
 }

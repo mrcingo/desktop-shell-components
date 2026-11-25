@@ -14,7 +14,9 @@ Title bars that work as on Windows 11, with no extra key:
   - A snapped or maximized window dragged away gets its old size back.
   - Escape or the right button cancels.
 
-Right-click and middle-click on title bars keep working as before.
+Right-click and middle-click on title bars keep working as before. The
+keyboard stays with your applications; Escape cancels a drag through a
+sway binding mode that is only active while dragging.
 
 ## Keyboard
 

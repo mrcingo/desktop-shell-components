@@ -10,7 +10,15 @@
 # binding only fires for a click so quick that the program has not taken
 # over the pointer yet. Mouse bindings act on title bars only, so clicks
 # inside windows are untouched.
+#
+# The program switches to this mode only while a window is being dragged,
+# so that Escape cancels the drag without taking the keyboard away from the
+# focused application.
 
 exec_always @bindir@/desktop-shell-window-snap
 bindsym button1 mark --add _window-snap-target, nop desktop-shell-window-snap press
 bindsym --release button1 nop desktop-shell-window-snap release
+
+mode "desktop-shell-window-snap" {
+    bindsym Escape nop desktop-shell-window-snap cancel
+}

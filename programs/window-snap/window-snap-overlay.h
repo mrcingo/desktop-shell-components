@@ -14,7 +14,7 @@ struct window_snap_overlay_handler {
     void (*handle_shown)(void *user_data);
     void (*handle_pointer_moved)(void *user_data, double x, double y);
     void (*handle_button_released)(void *user_data, double x, double y);
-    /* Escape or the right button. */
+    /* The right button. */
     void (*handle_cancelled)(void *user_data);
 };
 
@@ -36,8 +36,5 @@ void window_snap_overlay_show_preview(
     const char                 *label,
     int                         opacity
 );
-
-/* While dragging, Escape must reach the overlay. */
-void window_snap_overlay_take_keyboard(struct window_snap_overlay *overlay);
 
 #endif

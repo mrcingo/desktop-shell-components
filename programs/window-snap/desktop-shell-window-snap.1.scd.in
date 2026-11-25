@@ -33,10 +33,17 @@ starts the program and adds the title bar bindings:
 ```
 bindsym button1 mark --add _window-snap-target, nop desktop-shell-window-snap press
 bindsym --release button1 nop desktop-shell-window-snap release
+
+mode "desktop-shell-window-snap" {
+    bindsym Escape nop desktop-shell-window-snap cancel
+}
 ```
 
 Mouse bindings act on title bars only, so clicks inside windows are
-untouched. After a package upgrade, *swaymsg reload* restarts the program
+untouched. The program never takes the keyboard: a click changes focus only
+to the clicked window. It switches to the *desktop-shell-window-snap* mode
+only while a window is dragged, so that Escape cancels the drag, and back to
+the default mode when the drag ends. After a package upgrade, *swaymsg reload* restarts the program
 from the new file.
 
 # KEYBOARD
