@@ -16,7 +16,7 @@ colors and font from your sway bar, or from your GTK theme.
 | [window title format](programs/window-title-format)     | the process ID in each window's title bar         |
 | [application style export](programs/application-style-export) | the shared look for GTK apps, lock screen, prompts |
 | [window menu](programs/window-context-menu)              | right-click a title bar: force close, copy PID... |
-| [window snap](programs/window-snap)                    | Windows-like title bars: snap, maximize, preview  |
+| [window snap](programs/window-snap)                    | Win+arrow snapping, tidy layouts, optional snapping title bars |
 | [tray click window focus](programs/tray-click-window-focus) | clicking a tray icon brings up its window       |
 | [system status line](programs/system-status-line)       | network, battery, CPU, memory and more in the bar |
 | [notification daemon](programs/notification-daemon)     | notifications with sounds, shown in the status bar |

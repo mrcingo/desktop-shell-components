@@ -1,6 +1,30 @@
 # Window snap
 
-Title bars that work as on Windows 11, with no extra key:
+Windows-style snapping from the keyboard, and tidy layouts. Title bars stay
+exactly as sway makes them unless you opt in below: dragging one moves the
+window natively, and the translucent border resizes it.
+
+## Keyboard
+
+Add to your sway configuration (Super+Left then Super+Up gives the top left
+quarter, as on Windows):
+
+    bindsym Mod4+Left  nop desktop-shell-window-snap left
+    bindsym Mod4+Right nop desktop-shell-window-snap right
+    bindsym Mod4+Up    nop desktop-shell-window-snap up
+    bindsym Mod4+Down  nop desktop-shell-window-snap down
+
+`left-half`, `right-half`, `maximize` and `restore` jump straight there.
+
+## Optional: snapping title bars
+
+These two lines in your sway configuration make title bars work like
+Windows 11, at the cost of taking over left presses on them (the program
+follows the drag by moving the pointer through sway's seat commands, which
+can feel less direct than sway's own move):
+
+    bindsym button1 mark --add _window-snap-target, nop desktop-shell-window-snap press
+    bindsym --release button1 nop desktop-shell-window-snap release
 
 - **Click** a title bar: the window gets focus (on a tab: that tab shows).
 - **Double click**: the window fills the workspace; double click again to
@@ -13,22 +37,6 @@ Title bars that work as on Windows 11, with no extra key:
   - Anywhere else: a floating window just moves there.
   - A snapped or maximized window dragged away gets its old size back.
   - Escape or the right button cancels.
-
-Right-click and middle-click on title bars keep working as before. The
-keyboard stays with your applications; Escape cancels a drag through a
-sway binding mode that is only active while dragging.
-
-## Keyboard
-
-Add to your sway configuration for Windows-style snapping with Super and the
-arrow keys (Super+Left then Super+Up gives the top left quarter):
-
-    bindsym Mod4+Left  nop desktop-shell-window-snap left
-    bindsym Mod4+Right nop desktop-shell-window-snap right
-    bindsym Mod4+Up    nop desktop-shell-window-snap up
-    bindsym Mod4+Down  nop desktop-shell-window-snap down
-
-`left-half`, `right-half`, `maximize` and `restore` jump straight there.
 
 ## Settings
 

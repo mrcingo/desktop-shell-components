@@ -231,7 +231,7 @@ package_desktop-shell-drive-mount-policy() {
 }
 
 package_desktop-shell-window-snap() {
-    pkgdesc='Windows-like title bars for sway: click, double click to maximize, drag to snap with a preview'
+    pkgdesc='Windows-style window snapping for sway, with optional snapping title bars'
     depends=(desktop-shell-components-common glib2 glibc gtk4 gtk4-layer-shell json-glib sway)
     backup=(
         etc/sway/config.d/60-desktop-shell-window-snap.conf

@@ -2,7 +2,7 @@ desktop-shell-window-snap(1)
 
 # NAME
 
-desktop-shell-window-snap - Windows-like title bars: click, double click to maximize, drag to snap
+desktop-shell-window-snap - Windows-style window snapping from the keyboard, and optional snapping title bars
 
 # SYNOPSIS
 
@@ -10,8 +10,24 @@ desktop-shell-window-snap - Windows-like title bars: click, double click to maxi
 
 # DESCRIPTION
 
-*desktop-shell-window-snap* makes sway's title bars behave as on Windows,
-without any modifier key:
+*desktop-shell-window-snap* snaps the focused window as Windows does with
+the Windows key and the arrows (halves, quarters, maximize, restore; see
+KEYBOARD), and removes tab groups that hold nothing but another group.
+
+By default sway's title bars are left alone: dragging one moves the window
+natively. The installed
+_@sysconfdir@/sway/config.d/60-desktop-shell-window-snap.conf_ only starts
+the program and defines the mode used during optional title-bar drags.
+
+# OPTIONAL SNAPPING TITLE BARS
+
+With these two lines in the sway configuration, title bars behave as on
+Windows, without any modifier key:
+
+```
+bindsym button1 mark --add _window-snap-target, nop desktop-shell-window-snap press
+bindsym --release button1 nop desktop-shell-window-snap release
+```
 
 - A click focuses the window, switching to its tab.
 - A double click maximizes the window over the whole workspace, as a
@@ -24,27 +40,15 @@ without any modifier key:
   window simply moves. A maximized or snapped window dragged away gets its
   former size back. Escape or the right button cancels.
 
+To follow the drag, the program moves the pointer by a pixel and presses
+the button through sway's seat commands, which can feel less direct than
+sway's own move. It never takes the keyboard; it switches to the
+*desktop-shell-window-snap* mode only while a window is dragged, so that
+Escape cancels the drag.
+
 Windows that end up floating get a border of *floating-border-width*, tiled
-ones *tiled-border-width*.
-
-The installed _@sysconfdir@/sway/config.d/60-desktop-shell-window-snap.conf_
-starts the program and adds the title bar bindings:
-
-```
-bindsym button1 mark --add _window-snap-target, nop desktop-shell-window-snap press
-bindsym --release button1 nop desktop-shell-window-snap release
-
-mode "desktop-shell-window-snap" {
-    bindsym Escape nop desktop-shell-window-snap cancel
-}
-```
-
-Mouse bindings act on title bars only, so clicks inside windows are
-untouched. The program never takes the keyboard: a click changes focus only
-to the clicked window. It switches to the *desktop-shell-window-snap* mode
-only while a window is dragged, so that Escape cancels the drag, and back to
-the default mode when the drag ends. After a package upgrade, *swaymsg reload* restarts the program
-from the new file.
+ones *tiled-border-width*. After a package upgrade, *swaymsg reload*
+restarts the program from the new file.
 
 # KEYBOARD
 
