@@ -62,6 +62,8 @@ Each library does one job. A library only uses the ones above it.
 | `notification-rules`              | Per-application notification settings and sound decisions       |
 | `software-rendering-preference`   | Use GTK's lighter renderer for small interfaces                  |
 | `single-instance-lock`            | Let only one copy of a program run per display                   |
+| `window-screenshot-file-naming`   | Safe names and folders for window screenshots                    |
+| `exclusive-file-writing`          | Save a new file all at once, never replacing an existing one     |
 | `replaced-executable-restart`     | Restart a program whose file an upgrade replaced                 |
 | `text-placeholder-expansion`      | Fill `{name}` placeholders in user-written formats               |
 | `human-readable-quantities`       | Short sizes and durations: `1.2M`, `2h 15m`                      |
