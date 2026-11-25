@@ -17,7 +17,7 @@ pkgname=(
     desktop-shell-tray-click-window-focus
     desktop-shell-window-snap
 )
-pkgver=1.5.2
+pkgver=1.6.0
 pkgrel=1
 pkgdesc='Login screen, bars, window menu, notifications and Alt+Tab switcher for sway'
 arch=(x86_64)
