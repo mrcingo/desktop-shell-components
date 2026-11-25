@@ -27,18 +27,29 @@ window_context_menu_target_create(
     struct window_context_menu_target *target = g_new0(struct window_context_menu_target, 1);
 
     *target = (struct window_context_menu_target){
-        .container_id     = window->container_id,
-        .title            = g_strdup(window->title),
-        .application_name = g_strdup(window->application_name),
-        .is_floating      = window->is_floating,
-        .is_fullscreen    = window->is_fullscreen,
-        .is_sticky        = window->is_sticky,
-        .is_x11_window    = window->is_x11_window,
+        .container_id       = window->container_id,
+        .title              = g_strdup(window->title),
+        .application_name   = g_strdup(window->application_name),
+        .is_floating        = window->is_floating,
+        .is_fullscreen      = window->is_fullscreen,
+        .is_sticky          = window->is_sticky,
+        .is_x11_window      = window->is_x11_window,
+        .capture_identifier = g_strdup(window->toplevel_capture_identifier),
     };
 
     take_process(target, window, proc_directory);
 
     return target;
+}
+
+static void
+free_target_texts(
+    struct window_context_menu_target *target
+)
+{
+    g_free(target->title);
+    g_free(target->application_name);
+    g_free(target->capture_identifier);
 }
 
 void
@@ -52,8 +63,7 @@ window_context_menu_target_destroy(
 
     process_signal_handle_close(target->signal_handle);
     process_information_snapshot_destroy(target->process);
-    g_free(target->title);
-    g_free(target->application_name);
+    free_target_texts(target);
     g_free(target);
 }
 

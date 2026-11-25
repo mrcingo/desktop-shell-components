@@ -23,8 +23,20 @@ handle_menu_closed(
     overlay->handler->handle_menu_closed(overlay->user_data);
 }
 
+static void
+handle_screenshot_requested(
+    void                                    *user_data,
+    const struct window_context_menu_target *target
+)
+{
+    struct window_context_menu_overlay *overlay = user_data;
+
+    overlay->handler->handle_screenshot_requested(overlay->user_data, target);
+}
+
 static const struct window_context_menu_popover_handler popover_handler = {
-    .handle_closed = handle_menu_closed,
+    .handle_closed               = handle_menu_closed,
+    .handle_screenshot_requested = handle_screenshot_requested,
 };
 
 /* How long to wait for the pointer's position before using the fallback position. */

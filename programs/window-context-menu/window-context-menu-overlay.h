@@ -16,6 +16,8 @@
 struct window_context_menu_overlay_handler {
     /* The menu closed; the overlay may be destroyed now. */
     void (*handle_menu_closed)(void *user_data);
+    /* Screenshot was chosen; the menu is already gone. target is valid only during the call. */
+    void (*handle_screenshot_requested)(void *user_data, const struct window_context_menu_target *target);
 };
 
 struct window_context_menu_overlay;

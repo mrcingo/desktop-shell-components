@@ -22,6 +22,7 @@ struct window_context_menu_target {
     bool    is_fullscreen;
     bool    is_sticky;
     bool    is_x11_window;
+    char   *capture_identifier; // for screenshots; NULL when the compositor offers none
 
     /* NULL for X11 windows, whose process ID is the X server's, or when the process is gone. */
     struct process_information_snapshot *process;

@@ -23,6 +23,7 @@ executable(
         software_rendering_preference_dependency,
         window_context_menu_popover_dependency,
         window_context_menu_target_dependency,
+        window_screenshot_capturing_dependency,
     ],
     install: true,
 )

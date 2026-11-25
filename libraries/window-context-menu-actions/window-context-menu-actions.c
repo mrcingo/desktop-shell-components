@@ -260,6 +260,15 @@ activate_copy(
     }
 }
 
+/* For actions that whoever shows the menu carries out, through the "activate" signal. */
+static void
+activate_nothing(
+    GSimpleAction *action,
+    GVariant      *parameter,
+    gpointer       user_data
+)
+{}
+
 static const GActionEntry action_entries[] = {
     {"close",                  activate_window_command,    NULL, NULL,    NULL, {0}},
     {"toggle-floating",        activate_window_command,    NULL, "false", NULL, {0}},
@@ -280,6 +289,7 @@ static const GActionEntry action_entries[] = {
     {"copy-application-name",  activate_copy,              NULL, NULL,    NULL, {0}},
     {"copy-command-line",      activate_copy,              NULL, NULL,    NULL, {0}},
     {"copy-working-directory", activate_copy,              NULL, NULL,    NULL, {0}},
+    {"screenshot",             activate_nothing,           NULL, NULL,    NULL, {0}},
 };
 
 static void
@@ -359,6 +369,7 @@ show_window_states(
     set_action_checked(group, "toggle-sticky", target->is_sticky);
     set_action_enabled(group, "toggle-sticky", target->is_floating);
     set_action_enabled(group, "center", target->is_floating);
+    set_action_enabled(group, "screenshot", target->capture_identifier != NULL);
 }
 
 /* The group owns the context, which its actions receive. */

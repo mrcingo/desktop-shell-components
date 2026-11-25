@@ -18,7 +18,10 @@
  *   toggle-sticky (stateful), center, move-to-workspace (string: a
  *   number), move-to-output (left, right, up, down), set-border (normal,
  *   pixel, none), set-layout (splith, splitv, tabbed, stacking),
- *   move-to-scratchpad
+ *   move-to-scratchpad, screenshot
+ *
+ * screenshot does nothing itself: whoever shows the menu watches the
+ * action's "activate" signal and takes the screenshot once the menu is gone.
  *
  * Actions that cannot work for the target, such as signals for an X11
  * window, are disabled. target, ipc_client and clipboard must outlive the group.

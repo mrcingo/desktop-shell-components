@@ -11,6 +11,11 @@
 struct window_context_menu_settings {
     bool is_enabled;
     bool follows_sway_bar;
+
+    /* Screenshots: see window-screenshot-capturing.h. */
+    bool  copies_screenshots;
+    bool  saves_screenshots;
+    char *screenshot_folder; // empty for Pictures/Screenshots
 };
 
 /* override_path is the --config file, or NULL. */

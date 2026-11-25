@@ -6,9 +6,11 @@
 #include "window-context-menu-application.h"
 #include "window-context-menu-overlay.h"
 #include "window-context-menu-settings.h"
+#include "window-screenshot-capturing.h"
 
-static const char open_menu_command[] = "nop desktop-shell-window-context-menu";
-static const char target_mark[]       = "_window-context-menu-target";
+static const char open_menu_command[]  = "nop desktop-shell-window-context-menu";
+static const char screenshot_command[] = "nop desktop-shell-window-context-menu screenshot";
+static const char target_mark[]        = "_window-context-menu-target";
 
 struct window_context_menu_application {
     const struct window_context_menu_options *options;
@@ -19,7 +21,9 @@ struct window_context_menu_application {
     struct window_context_menu_settings  *settings;
     struct compositor_matched_appearance *appearance;
     struct window_context_menu_overlay   *overlay; // NULL while no menu is open
+    struct window_screenshot_capturing   *screenshot_capturing;
     bool                                  menu_requested;
+    bool                                  screenshot_requested;
 };
 
 static struct compositor_ipc_client *
@@ -40,8 +44,37 @@ handle_menu_closed(
     g_clear_pointer(&menu_program->overlay, window_context_menu_overlay_destroy);
 }
 
+/* The window's own content: covering windows and the menu never show. */
+static void
+take_screenshot(
+    struct window_context_menu_application *menu_program,
+    const char                             *capture_identifier,
+    const char                             *application_name
+)
+{
+    const struct window_screenshot_options options = {
+        .copies_to_clipboard = menu_program->settings->copies_screenshots,
+        .saves_file          = menu_program->settings->saves_screenshots,
+        .folder              = menu_program->settings->screenshot_folder,
+    };
+
+    if (!window_screenshot_capturing_take(menu_program->screenshot_capturing, capture_identifier, application_name, &options)) {
+        g_warning("This window cannot be captured");
+    }
+}
+
+static void
+handle_screenshot_requested(
+    void                                    *user_data,
+    const struct window_context_menu_target *target
+)
+{
+    take_screenshot(user_data, target->capture_identifier, target->application_name);
+}
+
 static const struct window_context_menu_overlay_handler overlay_handler = {
-    .handle_menu_closed = handle_menu_closed,
+    .handle_menu_closed          = handle_menu_closed,
+    .handle_screenshot_requested = handle_screenshot_requested,
 };
 
 /* NULL lets the compositor choose, when the monitor is unknown to GTK. */
@@ -95,7 +128,17 @@ show_menu(
     );
 }
 
-/* The mark only says which window was clicked; it goes once read. */
+/* The mark only says which window was meant; it goes once read. */
+static void
+remove_target_mark(
+    struct window_context_menu_application *menu_program
+)
+{
+    g_autofree char *unmark = g_strdup_printf("unmark %s", target_mark);
+
+    compositor_ipc_client_send_request(ipc_client_of(menu_program), COMPOSITOR_IPC_REQUEST_RUN_COMMAND, unmark, NULL, NULL);
+}
+
 static void
 open_menu_for_marked_window(
     struct window_context_menu_application *menu_program,
@@ -104,14 +147,59 @@ open_menu_for_marked_window(
 {
     const struct compositor_window *window = compositor_window_tree_find_marked_window(tree, target_mark);
 
-    g_autofree char *unmark = g_strdup_printf("unmark %s", target_mark);
-
     if (window == NULL) {
         return;
     }
 
     show_menu(menu_program, tree, window);
-    compositor_ipc_client_send_request(ipc_client_of(menu_program), COMPOSITOR_IPC_REQUEST_RUN_COMMAND, unmark, NULL, NULL);
+    remove_target_mark(menu_program);
+}
+
+/* Alt+Print Screen: the marked window, without any menu. */
+static void
+screenshot_marked_window(
+    struct window_context_menu_application *menu_program,
+    const struct compositor_window_tree    *tree
+)
+{
+    const struct compositor_window *window = compositor_window_tree_find_marked_window(tree, target_mark);
+
+    if (window == NULL) {
+        return;
+    }
+
+    take_screenshot(menu_program, window->toplevel_capture_identifier, window->application_name);
+    remove_target_mark(menu_program);
+}
+
+static void
+handle_requested_screenshot(
+    struct window_context_menu_application *menu_program,
+    const struct compositor_window_tree    *tree
+)
+{
+    if (!menu_program->screenshot_requested) {
+        return;
+    }
+
+    menu_program->screenshot_requested = false;
+
+    screenshot_marked_window(menu_program, tree);
+}
+
+static void
+handle_requested_menu(
+    struct window_context_menu_application *menu_program,
+    const struct compositor_window_tree    *tree
+)
+{
+    if (!menu_program->menu_requested) {
+        return;
+    }
+
+    menu_program->menu_requested = false;
+
+    open_menu_for_marked_window(menu_program, tree);
 }
 
 static void
@@ -120,15 +208,8 @@ handle_window_tree_updated(
     const struct compositor_window_tree *tree
 )
 {
-    struct window_context_menu_application *menu_program = user_data;
-
-    if (!menu_program->menu_requested) {
-        return;
-    }
-
-    menu_program->menu_requested = false;
-
-    open_menu_for_marked_window(menu_program, tree);
+    handle_requested_screenshot(user_data, tree);
+    handle_requested_menu(user_data, tree);
 }
 
 /* A binding's command is a list such as "mark --add X, nop Y"; any part may match. */
@@ -151,24 +232,53 @@ binding_runs_command(
 
 /* The mark is set by the same binding, so the next tree shows it. */
 static void
+request_for_marked_window(
+    struct window_context_menu_application *menu_program,
+    bool                                   *request_flag
+)
+{
+    *request_flag = true;
+
+    compositor_state_tracker_refresh_window_tree(menu_program->compositor_state);
+}
+
+/* The flag the binding asks to raise, or NULL. Screenshots work even when the menu is turned off. */
+static bool *
+find_request_flag(
+    struct window_context_menu_application *menu_program,
+    const char                             *command
+)
+{
+    if (binding_runs_command(command, screenshot_command)) {
+        return &menu_program->screenshot_requested;
+    }
+
+    if (!binding_runs_command(command, open_menu_command)) {
+        return NULL;
+    }
+
+    if (!menu_program->settings->is_enabled) {
+        return NULL;
+    }
+
+    return &menu_program->menu_requested;
+}
+
+/* Each part of the binding's command list must match exactly: "... menu" never runs "... menu screenshot". */
+static void
 handle_key_binding_command(
     void       *user_data,
     const char *command
 )
 {
     struct window_context_menu_application *menu_program = user_data;
+    bool                                   *request_flag = find_request_flag(menu_program, command);
 
-    if (!binding_runs_command(command, open_menu_command)) {
+    if (request_flag == NULL) {
         return;
     }
 
-    if (!menu_program->settings->is_enabled) {
-        return;
-    }
-
-    menu_program->menu_requested = true;
-
-    compositor_state_tracker_refresh_window_tree(menu_program->compositor_state);
+    request_for_marked_window(menu_program, request_flag);
 }
 
 static void
@@ -256,6 +366,17 @@ create_appearance(
     );
 }
 
+/* The screenshot taker keeps the clipboard, so it lives as long as the program. */
+static void
+create_display_resources(
+    struct window_context_menu_application *menu_program
+)
+{
+    create_appearance(menu_program);
+
+    menu_program->screenshot_capturing = window_screenshot_capturing_create(gdk_display_get_default());
+}
+
 /* Widgets can only be created once GtkApplication has started GTK. */
 static void
 handle_activate(
@@ -271,7 +392,7 @@ handle_activate(
 
     menu_program->started_successfully = true;
 
-    create_appearance(menu_program);
+    create_display_resources(menu_program);
     reload_settings(menu_program);
 
     /* No window stays open between menus; keep running anyway. */
@@ -288,6 +409,7 @@ handle_shutdown(
     struct window_context_menu_application *menu_program = user_data;
 
     g_clear_pointer(&menu_program->overlay, window_context_menu_overlay_destroy);
+    g_clear_pointer(&menu_program->screenshot_capturing, window_screenshot_capturing_destroy);
     g_clear_pointer(&menu_program->appearance, compositor_matched_appearance_destroy);
     g_clear_pointer(&menu_program->compositor_state, compositor_state_tracker_destroy);
     g_clear_pointer(&menu_program->settings, window_context_menu_settings_destroy);

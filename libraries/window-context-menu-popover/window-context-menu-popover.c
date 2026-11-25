@@ -1,6 +1,8 @@
-#include "window-context-menu-popover.h"
+#include <stdbool.h>
+
 #include "text-ellipsis-truncation.h"
 #include "window-context-menu-actions.h"
+#include "window-context-menu-popover.h"
 
 enum {
     MAXIMUM_HEADER_CHARACTERS = 60,
@@ -9,6 +11,8 @@ enum {
 
 struct open_menu {
     GtkWidget                                        *popover;
+    GActionGroup                                     *actions;
+    bool                                              screenshot_requested;
     struct window_context_menu_target                *target;
     const struct window_context_menu_popover_handler *handler;
     void                                             *user_data;
@@ -129,6 +133,7 @@ create_copy_section(void)
     GMenu *section = g_menu_new();
 
     append_owned_submenu(section, "Copy", create_copy_submenu());
+    g_menu_append(section, "Screenshot", "window.screenshot");
 
     return section;
 }
@@ -282,6 +287,30 @@ remove_from_parent(
     gtk_widget_unparent(popover);
 }
 
+/* The popover is already off screen, so the screenshot never shows the menu. */
+static void
+report_screenshot_requested(
+    const struct open_menu *menu
+)
+{
+    if (!menu->screenshot_requested) {
+        return;
+    }
+
+    menu->handler->handle_screenshot_requested(menu->user_data, menu->target);
+}
+
+static void
+release_menu(
+    struct open_menu *menu
+)
+{
+    window_context_menu_target_destroy(menu->target);
+    g_object_unref(menu->actions);
+    g_object_unref(menu->popover);
+    g_free(menu);
+}
+
 /* Runs after the chosen action, which still needs the target while it runs. */
 static gboolean
 remove_closed_menu(
@@ -291,10 +320,9 @@ remove_closed_menu(
     struct open_menu *menu = user_data;
 
     remove_from_parent(menu->popover);
-    window_context_menu_target_destroy(menu->target);
-    g_object_unref(menu->popover);
+    report_screenshot_requested(menu);
     report_menu_closed(menu);
-    g_free(menu);
+    release_menu(menu);
 
     return G_SOURCE_REMOVE;
 }
@@ -320,25 +348,11 @@ style_popover(
     gtk_widget_add_css_class(popover, "window-context-menu");
 }
 
-static void
-attach_window_actions(
-    GtkWidget                         *popover,
-    struct window_context_menu_target *target,
-    struct compositor_ipc_client      *ipc_client,
-    GdkClipboard                      *clipboard
-)
-{
-    GActionGroup *actions = window_context_menu_actions_create(target, ipc_client, clipboard);
-
-    gtk_widget_insert_action_group(popover, "window", actions);
-    g_object_unref(actions);
-}
-
 static GtkWidget *
 create_popover(
     GtkWidget                         *parent,
     struct window_context_menu_target *target,
-    struct compositor_ipc_client      *ipc_client
+    GActionGroup                      *actions
 )
 {
     g_autoptr(GMenuModel) model = create_menu_model();
@@ -346,11 +360,51 @@ create_popover(
     GtkWidget *popover = gtk_popover_menu_new_from_model_full(model, GTK_POPOVER_MENU_NESTED);
 
     add_header_labels(popover, target);
-    attach_window_actions(popover, target, ipc_client, gtk_widget_get_clipboard(parent));
+    gtk_widget_insert_action_group(popover, "window", actions);
     gtk_widget_set_parent(popover, parent);
     style_popover(popover);
 
     return popover;
+}
+
+static void
+handle_screenshot_chosen(
+    GSimpleAction *action,
+    GVariant      *parameter,
+    gpointer       user_data
+)
+{
+    struct open_menu *menu = user_data;
+
+    menu->screenshot_requested = true;
+}
+
+static bool
+can_report_screenshots(
+    const struct window_context_menu_popover_handler *handler
+)
+{
+    if (handler == NULL) {
+        return false;
+    }
+
+    return handler->handle_screenshot_requested != NULL;
+}
+
+/* Without anyone to take the screenshot, the item stays disabled. */
+static void
+watch_screenshot_action(
+    struct open_menu *menu
+)
+{
+    GAction *screenshot_action = g_action_map_lookup_action(G_ACTION_MAP(menu->actions), "screenshot");
+
+    if (!can_report_screenshots(menu->handler)) {
+        g_simple_action_set_enabled(G_SIMPLE_ACTION(screenshot_action), FALSE);
+        return;
+    }
+
+    g_signal_connect(screenshot_action, "activate", G_CALLBACK(handle_screenshot_chosen), menu);
 }
 
 void
@@ -363,16 +417,19 @@ window_context_menu_popover_show(
     void                                             *user_data
 )
 {
-    struct open_menu *menu = g_new0(struct open_menu, 1);
+    struct open_menu *menu    = g_new0(struct open_menu, 1);
+    GActionGroup     *actions = window_context_menu_actions_create(target, ipc_client, gtk_widget_get_clipboard(parent));
 
     /* Held until the menu is removed, even if the parent goes first. */
     *menu = (struct open_menu){
-        .popover   = g_object_ref(create_popover(parent, target, ipc_client)),
+        .popover   = g_object_ref(create_popover(parent, target, actions)),
+        .actions   = actions,
         .target    = target,
         .handler   = handler,
         .user_data = user_data,
     };
 
+    watch_screenshot_action(menu);
     g_signal_connect(menu->popover, "closed", G_CALLBACK(handle_popover_closed), menu);
     gtk_popover_set_pointing_to(GTK_POPOVER(menu->popover), pointing_to);
     gtk_popover_popup(GTK_POPOVER(menu->popover));

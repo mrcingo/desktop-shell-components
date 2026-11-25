@@ -64,6 +64,7 @@ Each library does one job. A library only uses the ones above it.
 | `single-instance-lock`            | Let only one copy of a program run per display                   |
 | `window-screenshot-file-naming`   | Safe names and folders for window screenshots                    |
 | `exclusive-file-writing`          | Save a new file all at once, never replacing an existing one     |
+| `window-screenshot-capturing`     | Copy and save a window's own content, as Alt+Print Screen does   |
 | `replaced-executable-restart`     | Restart a program whose file an upgrade replaced                 |
 | `text-placeholder-expansion`      | Fill `{name}` placeholders in user-written formats               |
 | `human-readable-quantities`       | Short sizes and durations: `1.2M`, `2h 15m`                      |

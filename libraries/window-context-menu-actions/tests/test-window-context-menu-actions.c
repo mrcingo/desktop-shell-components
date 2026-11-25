@@ -57,13 +57,42 @@ test_workspace_numbers_are_checked(void)
     g_assert_false(window_context_menu_is_workspace_number(""));
 }
 
+static void
+release_groups_and_target(
+    GActionGroup                      *first,
+    GActionGroup                      *second,
+    struct window_context_menu_target *target
+)
+{
+    g_object_unref(first);
+    g_object_unref(second);
+    window_context_menu_target_destroy(target);
+}
+
+/* Only a window the compositor can capture offers a screenshot. */
+static void
+test_screenshot_needs_capture_identifier(void)
+{
+    struct window_context_menu_target *target  = create_x11_target();
+    GActionGroup                      *without = window_context_menu_actions_create(target, NULL, NULL);
+
+    target->capture_identifier = g_strdup("toplevel-1");
+
+    GActionGroup *with = window_context_menu_actions_create(target, NULL, NULL);
+
+    g_assert_false(g_action_group_get_action_enabled(without, "screenshot"));
+    g_assert_true(g_action_group_get_action_enabled(with, "screenshot"));
+    release_groups_and_target(without, with, target);
+}
+
 static const struct {
     const char *test_path;
     GTestFunc   test_function;
 } registered_tests[] = {
-    {"/window-context-menu-actions/x11",        test_x11_window_cannot_be_signalled},
-    {"/window-context-menu-actions/states",     test_window_states_are_shown       },
-    {"/window-context-menu-actions/workspaces", test_workspace_numbers_are_checked },
+    {"/window-context-menu-actions/x11",        test_x11_window_cannot_be_signalled     },
+    {"/window-context-menu-actions/states",     test_window_states_are_shown            },
+    {"/window-context-menu-actions/workspaces", test_workspace_numbers_are_checked      },
+    {"/window-context-menu-actions/screenshot", test_screenshot_needs_capture_identifier},
 };
 
 int
