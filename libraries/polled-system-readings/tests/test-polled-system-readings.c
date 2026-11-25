@@ -2,8 +2,14 @@
 
 #include "polled-system-readings.h"
 
+enum {
+    WANTED_ROUNDS             = 2,
+    LONGEST_WAIT_MILLISECONDS = 5000, // whole-second timers may first fire up to two seconds late
+};
+
 static int values_read_count;
 
+/* Stops waiting as soon as enough rounds were read, so a slow machine only makes the test slower. */
 static void
 count_values_read(
     void                              *user_data,
@@ -11,6 +17,10 @@ count_values_read(
 )
 {
     values_read_count++;
+
+    if (values_read_count >= WANTED_ROUNDS) {
+        g_main_loop_quit(user_data);
+    }
 }
 
 static const struct polled_system_readings_handler handler = {
@@ -24,18 +34,19 @@ stop_loop(
 {
     g_main_loop_quit(user_data);
 
-    return G_SOURCE_REMOVE;
+    return G_SOURCE_CONTINUE; // removed by its owner, which may also quit first
 }
 
 static void
-run_main_loop_for(
-    guint milliseconds
+run_main_loop_until_quit_or_after(
+    GMainLoop *loop,
+    guint      milliseconds
 )
 {
-    g_autoptr(GMainLoop) loop = g_main_loop_new(NULL, FALSE);
+    guint timeout_source = g_timeout_add(milliseconds, stop_loop, loop);
 
-    g_timeout_add(milliseconds, stop_loop, loop);
     g_main_loop_run(loop);
+    g_source_remove(timeout_source);
 }
 
 static void
@@ -43,7 +54,7 @@ assert_values_were_read(
     const struct polled_system_values *values
 )
 {
-    g_assert_cmpint(values_read_count, >=, 2);
+    g_assert_cmpint(values_read_count, >=, WANTED_ROUNDS);
     g_assert_cmpint(values->processor_usage_percent, >=, 0);
     g_assert_true(values->has_memory);
     g_assert_true(values->has_disk);
@@ -63,10 +74,12 @@ test_values_are_read_on_the_timer(void)
         .temperature_sensor_name = "no-such-sensor",
     };
 
-    struct polled_system_readings *readings = polled_system_readings_create(&options, &handler, NULL);
+    g_autoptr(GMainLoop) loop = g_main_loop_new(NULL, FALSE);
+
+    struct polled_system_readings *readings = polled_system_readings_create(&options, &handler, loop);
 
     polled_system_readings_set_network_interface(readings, "lo");
-    run_main_loop_for(2500);
+    run_main_loop_until_quit_or_after(loop, LONGEST_WAIT_MILLISECONDS);
     assert_values_were_read(polled_system_readings_get_values(readings));
     polled_system_readings_destroy(readings);
 }
