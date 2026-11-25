@@ -1,0 +1,47 @@
+desktop-shell-tray-click-window-focus(1)
+
+# NAME
+
+desktop-shell-tray-click-window-focus - brings up an application's window when its tray icon is clicked
+
+# SYNOPSIS
+
+*desktop-shell-tray-click-window-focus* [*-c* _FILE_]
+
+# DESCRIPTION
+
+When a tray icon is clicked, sway's bar calls Activate on the icon's
+StatusNotifierItem without an activation token, so an application asking
+to be shown is only marked urgent. This program watches those calls as a
+D-Bus monitor (org.freedesktop.DBus.Monitoring), asks the bus which process
+owns the icon, and focuses that process's window through sway's IPC: its
+own window, else a parent's or child's. It focuses once at once and once
+more shortly after, for applications that open their window on the click.
+
+It reads only Activate calls to tray icons and sends nothing on the bus.
+After a package upgrade, *swaymsg reload* restarts it from the new file.
+
+# OPTIONS
+
+*-h, --help*
+	Show the help message and exit.
+
+*-c, --config* _FILE_
+	Read settings from _FILE_ instead of the usual places.
+
+*-s, --style* _FILE_
+	Accepted like by every component; unused.
+
+# SETTINGS
+
+Read from _$XDG_CONFIG_HOME/desktop-shell-components/tray-click-window-focus.ini_,
+else _/etc/xdg/desktop-shell-components/tray-click-window-focus.ini_. All are
+optional; *swaymsg reload* applies changes.
+
+*[focus]*
+	*enabled* = _true_|_false_++
+	*second-attempt* = _0-5000_ milliseconds (0 for none)
+
+# SEE ALSO
+
+*sway*(5), *sway-bar*(5), *dbus-monitor*(1)

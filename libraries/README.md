@@ -22,6 +22,7 @@ Each library does one job. A library only uses the ones above it.
 | `notification-sound-player`       | Play a notification sound without blocking, at most so often     |
 | `process-window-lookup`           | The window of a process, its parent or its child                 |
 | `process-window-focusing`         | Bring up the window of a process                                 |
+| `status-notifier-activation-watcher` | Notice clicks on tray icons, with the icon's process ID       |
 | `notification-specification-server` | The notification server on D-Bus, and its status bar interface |
 | `process-information-snapshot`    | A process's command line, directory, memory and state from /proc |
 | `process-signal-handle`           | Signal exactly the process a menu was opened for (pidfd)         |

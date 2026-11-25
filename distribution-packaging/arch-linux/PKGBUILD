@@ -12,6 +12,7 @@ pkgname=(
     desktop-shell-window-context-menu
     desktop-shell-system-status-line
     desktop-shell-notification-daemon
+    desktop-shell-tray-click-window-focus
 )
 pkgver=1.4.0
 pkgrel=1
@@ -179,4 +180,19 @@ package_desktop-shell-notification-daemon() {
     _take_program desktop-shell-notification-daemon
     _take_files usr/share/desktop-shell-components/notification-chime.wav usr/share/desktop-shell-components/notification-critical-chime.wav
     _take_files etc/sway/config.d/60-desktop-shell-notification-daemon.conf etc/xdg/desktop-shell-components/notification-daemon.ini
+}
+
+package_desktop-shell-tray-click-window-focus() {
+    pkgdesc='Clicking a tray icon in the sway bar brings up its window'
+    depends=(glib2 glibc json-glib sway)
+    backup=(
+        etc/sway/config.d/60-desktop-shell-tray-click-window-focus.conf
+        etc/xdg/desktop-shell-components/tray-click-window-focus.ini
+    )
+    install=desktop-shell-tray-click-window-focus.install
+
+    _install_into_staging
+    _take_program desktop-shell-tray-click-window-focus
+    _take_files etc/sway/config.d/60-desktop-shell-tray-click-window-focus.conf
+    _take_files etc/xdg/desktop-shell-components/tray-click-window-focus.ini
 }
