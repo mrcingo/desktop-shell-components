@@ -7,10 +7,10 @@
 #include "window-context-menu-target.h"
 
 /*
- * A transparent surface over one monitor that holds the window menu. sway
- * tells a new surface where the pointer is only once it moves, so the menu
- * opens at a position given in the monitor's pixels, such as just below
- * the clicked window's title bar.
+ * A transparent surface over one monitor that holds the window menu. The
+ * menu opens at the pointer; if its position does not arrive quickly, at
+ * fallback_position, in the monitor's pixels, such as just below the
+ * clicked window's title bar.
  */
 
 struct window_context_menu_overlay_handler {
@@ -26,7 +26,7 @@ struct window_context_menu_overlay *window_context_menu_overlay_show(
     GdkMonitor                                       *monitor,
     struct window_context_menu_target                *target,
     struct compositor_ipc_client                     *ipc_client,
-    const GdkRectangle                               *menu_position,
+    const GdkRectangle                               *fallback_position,
     const struct window_context_menu_overlay_handler *handler,
     void                                             *user_data
 );

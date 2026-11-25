@@ -1,5 +1,5 @@
-# Starts the window menu with sway and opens it when a window's title bar is
-# right-clicked. Installed by desktop-shell-window-context-menu into
+# Starts the window menu with sway and opens it when a window's title bar or
+# border is right-clicked. Installed by desktop-shell-window-context-menu into
 # /etc/sway/config.d, which sway's default configuration includes. Starting
 # it again on reload is harmless: a second copy exits at once. Turn it off
 # with "enabled = false" in ~/.config/desktop-shell-components/window-context-menu.ini.
@@ -8,4 +8,4 @@
 # the window under the pointer.
 
 exec_always @bindir@/desktop-shell-window-context-menu
-bindsym button3 mark --add _window-context-menu-target, nop desktop-shell-window-context-menu
+bindsym --border button3 mark --add _window-context-menu-target, nop desktop-shell-window-context-menu

@@ -1,5 +1,10 @@
-/* The see-through surface that holds the window menu; the menu's look is in shared-theme.css. */
+/*
+ * The surface that holds the window menu; the menu's look is in
+ * shared-theme.css. The background must not be fully transparent: a fully
+ * transparent surface gets no pointer events, and the menu opens where the
+ * pointer is. One step of alpha out of 255 cannot be seen.
+ */
 
 window.window-context-menu-overlay {
-    background-color: transparent;
+    background-color: rgba(0, 0, 0, 0.004);
 }

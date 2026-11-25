@@ -7,7 +7,8 @@ struct window_context_menu_overlay {
     GtkWidget                                        *menu_parent;
     struct window_context_menu_target                *target; // owned until the menu opens
     struct compositor_ipc_client                     *ipc_client;
-    GdkRectangle                                      menu_position;
+    GdkRectangle                                      fallback_position;
+    guint                                             pointer_wait_source;
     const struct window_context_menu_overlay_handler *handler;
     void                                             *user_data;
 };
@@ -26,27 +27,80 @@ static const struct window_context_menu_popover_handler popover_handler = {
     .handle_closed = handle_menu_closed,
 };
 
-/* A popover can only open once its parent is on screen. */
+/* How long to wait for the pointer's position before using the fallback position. */
+static const guint pointer_wait_milliseconds = 250;
+
+/* Opens once: at the pointer when its position arrives, else at the fallback position. */
 static void
-open_menu_once_shown(
+open_menu_at(
+    struct window_context_menu_overlay *overlay,
+    const GdkRectangle                 *position
+)
+{
+    if (overlay->target == NULL) {
+        return; // already open
+    }
+
+    g_clear_handle_id(&overlay->pointer_wait_source, g_source_remove);
+    window_context_menu_popover_show(
+        overlay->menu_parent,
+        position,
+        g_steal_pointer(&overlay->target),
+        overlay->ipc_client,
+        &popover_handler,
+        overlay
+    );
+}
+
+static void
+handle_pointer_entered(
+    GtkEventControllerMotion *motion_controller,
+    double                    x,
+    double                    y,
+    gpointer                  user_data
+)
+{
+    const GdkRectangle pointer_position = {.x = (int)x, .y = (int)y, .width = 1, .height = 1};
+
+    open_menu_at(user_data, &pointer_position);
+}
+
+static gboolean
+open_menu_at_fallback_position(
+    gpointer user_data
+)
+{
+    struct window_context_menu_overlay *overlay = user_data;
+
+    overlay->pointer_wait_source = 0;
+
+    open_menu_at(overlay, &overlay->fallback_position);
+
+    return G_SOURCE_REMOVE;
+}
+
+/* sway tells a surface where the pointer is as soon as it appears under it. */
+static void
+wait_for_pointer_position(
     GtkWidget *menu_parent,
     gpointer   user_data
 )
 {
     struct window_context_menu_overlay *overlay = user_data;
 
-    if (overlay->target == NULL) {
-        return; // mapped again; the menu is already open
-    }
+    overlay->pointer_wait_source = g_timeout_add(pointer_wait_milliseconds, open_menu_at_fallback_position, overlay);
+}
 
-    window_context_menu_popover_show(
-        overlay->menu_parent,
-        &overlay->menu_position,
-        g_steal_pointer(&overlay->target),
-        overlay->ipc_client,
-        &popover_handler,
-        overlay
-    );
+static void
+listen_for_pointer(
+    struct window_context_menu_overlay *overlay
+)
+{
+    GtkEventController *motion_controller = gtk_event_controller_motion_new();
+
+    g_signal_connect(motion_controller, "enter", G_CALLBACK(handle_pointer_entered), overlay);
+    gtk_widget_add_controller(GTK_WIDGET(overlay->window), motion_controller);
+    g_signal_connect(overlay->menu_parent, "map", G_CALLBACK(wait_for_pointer_position), overlay);
 }
 
 static GtkWindow *
@@ -78,7 +132,7 @@ window_context_menu_overlay_show(
     GdkMonitor                                       *monitor,
     struct window_context_menu_target                *target,
     struct compositor_ipc_client                     *ipc_client,
-    const GdkRectangle                               *menu_position,
+    const GdkRectangle                               *fallback_position,
     const struct window_context_menu_overlay_handler *handler,
     void                                             *user_data
 )
@@ -86,16 +140,16 @@ window_context_menu_overlay_show(
     struct window_context_menu_overlay *overlay = g_new0(struct window_context_menu_overlay, 1);
 
     *overlay = (struct window_context_menu_overlay){
-        .window        = create_overlay_window(application, monitor),
-        .menu_parent   = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0),
-        .target        = target,
-        .ipc_client    = ipc_client,
-        .menu_position = *menu_position,
-        .handler       = handler,
-        .user_data     = user_data,
+        .window            = create_overlay_window(application, monitor),
+        .menu_parent       = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0),
+        .target            = target,
+        .ipc_client        = ipc_client,
+        .fallback_position = *fallback_position,
+        .handler           = handler,
+        .user_data         = user_data,
     };
 
-    g_signal_connect(overlay->menu_parent, "map", G_CALLBACK(open_menu_once_shown), overlay);
+    listen_for_pointer(overlay);
     gtk_window_set_child(overlay->window, overlay->menu_parent);
     gtk_window_present(overlay->window);
 
@@ -111,6 +165,7 @@ window_context_menu_overlay_destroy(
         return;
     }
 
+    g_clear_handle_id(&overlay->pointer_wait_source, g_source_remove);
     window_context_menu_target_destroy(overlay->target);
     gtk_window_destroy(overlay->window);
     g_free(overlay);
