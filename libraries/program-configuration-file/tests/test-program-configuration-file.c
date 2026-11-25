@@ -99,6 +99,37 @@ test_unknown_keys_are_reported(void)
     unload(&loaded);
 }
 
+static const struct program_configuration_key rule_keys[] = {
+    {"app:*", "timeout"},
+    {NULL,    NULL     },
+};
+
+static void
+assert_second_group(
+    struct program_configuration_file *file,
+    const char                        *prefix,
+    const char                        *expected_name
+)
+{
+    g_auto(GStrv) groups = program_configuration_file_list_groups_with_prefix(file, prefix);
+
+    g_assert_cmpstr(groups[1], ==, expected_name);
+}
+
+/* [app:*] stands for every application group; other groups keep exact names. */
+static void
+test_prefix_groups_are_listed_and_checked(void)
+{
+    struct loaded_configuration loaded = load_contents("[app:Slack]\ntimeout = 3\n[app:foot]\ntimeot = 1\n[apps]\nx = 1\n");
+
+    assert_second_group(loaded.file, "app:", "app:foot");
+    g_test_expect_message(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "*[app:foot] has no setting \"timeot\"*");
+    g_test_expect_message(G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "*[apps] has no setting \"x\"*");
+    program_configuration_file_report_unknown_keys(loaded.file, rule_keys);
+    g_test_assert_expected_messages();
+    unload(&loaded);
+}
+
 static void
 test_booleans_accept_true_and_false_only(void)
 {
@@ -114,11 +145,12 @@ static const struct {
     const char *test_path;
     GTestFunc   test_function;
 } registered_tests[] = {
-    {"/program-configuration-file/missing-file",   test_missing_file_keeps_every_default   },
-    {"/program-configuration-file/valid-values",   test_valid_values_are_read              },
-    {"/program-configuration-file/invalid-values", test_invalid_values_fall_back           },
-    {"/program-configuration-file/unknown-keys",   test_unknown_keys_are_reported          },
-    {"/program-configuration-file/booleans",       test_booleans_accept_true_and_false_only},
+    {"/program-configuration-file/missing-file",   test_missing_file_keeps_every_default    },
+    {"/program-configuration-file/valid-values",   test_valid_values_are_read               },
+    {"/program-configuration-file/invalid-values", test_invalid_values_fall_back            },
+    {"/program-configuration-file/unknown-keys",   test_unknown_keys_are_reported           },
+    {"/program-configuration-file/booleans",       test_booleans_accept_true_and_false_only },
+    {"/program-configuration-file/prefix-groups",  test_prefix_groups_are_listed_and_checked},
 };
 
 int

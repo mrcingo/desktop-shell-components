@@ -17,7 +17,11 @@
 
 struct program_configuration_file;
 
-/* One setting a group accepts, for reporting misspelt keys. */
+/*
+ * One setting a group accepts, for reporting misspelt keys. A group name
+ * ending in "*", such as "app:*", stands for every group starting with
+ * what comes before it, as in [app:Slack].
+ */
 struct program_configuration_key {
     const char *group_name;
     const char *key_name;
@@ -36,6 +40,9 @@ void program_configuration_file_report_unknown_keys(
     struct program_configuration_file      *configuration,
     const struct program_configuration_key *known_keys
 );
+
+/* The names of the groups starting with prefix, in file order. Free with g_strfreev(). */
+char **program_configuration_file_list_groups_with_prefix(struct program_configuration_file *configuration, const char *prefix);
 
 /* Free the result with g_free(). */
 char *program_configuration_file_read_text(

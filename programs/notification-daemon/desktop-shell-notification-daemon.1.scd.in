@@ -1,0 +1,101 @@
+desktop-shell-notification-daemon(1)
+
+# NAME
+
+desktop-shell-notification-daemon - notification server with sounds, shown in the status bar
+
+# SYNOPSIS
+
+*desktop-shell-notification-daemon* [*-c* _FILE_]
+
+# DESCRIPTION
+
+*desktop-shell-notification-daemon* receives the notifications programs send
+on the session bus (the Desktop Notifications Specification 1.2, bus name
+_org.freedesktop.Notifications_). It shows nothing on screen: it plays a
+sound, keeps the recent notifications and tells the status bar about them,
+which shows the number of unread ones and the latest one, and brings up the
+sender's window when clicked.
+
+Sounds: a notification's own *sound-file* or *sound-name* hint plays when
+given (the name is looked up in the freedesktop sound theme). A notification
+with the *suppress-sound* hint plays nothing, as applications set it when
+they play their own sound. Otherwise the daemon's chime plays, a more
+insistent one for critical notifications. At most one sound plays per
+*minimum-interval*, and none during do-not-disturb (critical ones aside, if
+*critical-sounds* is true).
+
+A notification counts as expired for its sender after its timeout; it stays
+unread until the status bar marks it read. It follows the compositor through
+_$SWAYSOCK_ to bring up windows and to reread its settings on *swaymsg
+reload*, after which it also restarts from a newly installed file.
+
+# OPTIONS
+
+*-h, --help*
+	Show the help message and exit.
+
+*-c, --config* _FILE_
+	Read settings from _FILE_ instead of the usual places.
+
+*-s, --style* _FILE_
+	Accepted like by every component; unused, as nothing is drawn.
+
+# STATUS BAR INTERFACE
+
+On the same bus name, object
+_/io/github/mrcingo/DesktopShellComponents/NotificationCenter_, interface
+_io.github.mrcingo.DesktopShellComponents.NotificationCenter_:
+
+*UnreadCount* (u, read)
+	Notifications that arrived and were not read yet.
+
+*LatestText* (s, read)
+	The newest unread one as "Application: summary", at most 120 characters;
+	empty when none is unread.
+
+*LatestUrgency* (y, read)
+	Its urgency: 0 low, 1 normal, 2 critical.
+
+*DoNotDisturb* (b, read and write)
+
+*ActivateLatest()*
+	Brings up the newest unread notification's window: the sender's process
+	window, else its parent's (a terminal running a script), else its
+	child's, else a window with the application's name. Then sends the
+	sender the "default" action if it offered one, and marks it read.
+
+*MarkAllRead()*, *ToggleDoNotDisturb()*
+
+Every property change is announced with PropertiesChanged.
+
+# SETTINGS
+
+Read from _$XDG_CONFIG_HOME/desktop-shell-components/notification-daemon.ini_,
+else _@sysconfdir@/xdg/desktop-shell-components/notification-daemon.ini_,
+which lists every setting with its default. All are optional; *swaymsg
+reload* applies changes, except the history size, which applies on restart.
+
+*[sound]*
+	*play-sound* = _unless-suppressed_|_always_|_never_++
+	*volume* = _0-100_++
+	*minimum-interval* = milliseconds between sounds++
+	*player* = command, with *{volume}* standing for 0.00 to 1.00++
+	*file*, *critical-file* = sound files
+
+*[timeouts]*
+	*low*, *normal*, *critical* = seconds until expiry; 0 for never
+
+*[history]*
+	*size* = notifications kept
+
+*[do-not-disturb]*
+	*on-at-start* = _true_|_false_++
+	*critical-sounds* = _true_|_false_
+
+*[app:*_NAME_*]*, matching the application name or desktop entry, ignoring case
+	*play-sound*, *urgency* = _low_|_normal_|_critical_, *timeout*, *ignore* = _true_|_false_
+
+# SEE ALSO
+
+*sway*(5), *pw-play*(1), *desktop-shell-system-status-line*(1)

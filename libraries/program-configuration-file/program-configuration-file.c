@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include <glib.h>
 
 #include "program-configuration-file.h"
@@ -159,6 +161,20 @@ program_configuration_file_get_path(
     return configuration->path;
 }
 
+/* "app:*" matches every group starting with "app:". */
+static bool
+group_matches(
+    const char *known_group_name,
+    const char *group_name
+)
+{
+    if (!g_str_has_suffix(known_group_name, "*")) {
+        return g_strcmp0(known_group_name, group_name) == 0;
+    }
+
+    return strncmp(known_group_name, group_name, strlen(known_group_name) - 1) == 0;
+}
+
 static bool
 key_matches(
     const struct program_configuration_key *known_key,
@@ -166,7 +182,7 @@ key_matches(
     const char                             *key_name
 )
 {
-    if (g_strcmp0(known_key->group_name, group_name) != 0) {
+    if (!group_matches(known_key->group_name, group_name)) {
         return false;
     }
 
@@ -220,6 +236,25 @@ program_configuration_file_report_unknown_keys(
     }
 
     g_strfreev(group_names);
+}
+
+char **
+program_configuration_file_list_groups_with_prefix(
+    struct program_configuration_file *configuration,
+    const char                        *prefix
+)
+{
+    g_auto(GStrv) group_names = g_key_file_get_groups(configuration->key_file, NULL);
+
+    GStrvBuilder *matching = g_strv_builder_new();
+
+    for (size_t i = 0; group_names[i] != NULL; i++) {
+        if (g_str_has_prefix(group_names[i], prefix)) {
+            g_strv_builder_add(matching, group_names[i]);
+        }
+    }
+
+    return g_strv_builder_unref_to_strv(matching);
 }
 
 static bool
