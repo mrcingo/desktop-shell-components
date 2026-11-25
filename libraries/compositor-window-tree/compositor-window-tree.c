@@ -87,6 +87,7 @@ destroy_window(
     g_free(window->title);
     g_free(window->workspace_name);
     g_free(window->toplevel_capture_identifier);
+    g_strfreev(window->marks);
     g_free(window);
 }
 
@@ -163,6 +164,32 @@ lookup_process_id(
     return (int)process_id;
 }
 
+static int
+rectangle_left_edge(
+    JsonObject *tree_node
+)
+{
+    JsonObject *rectangle = typed_json_lookup_object_member(tree_node, "rect");
+    int64_t     left_edge = 0;
+
+    typed_json_lookup_integer_member(rectangle, "x", &left_edge);
+
+    return (int)left_edge;
+}
+
+static int
+rectangle_top_edge(
+    JsonObject *tree_node
+)
+{
+    JsonObject *rectangle = typed_json_lookup_object_member(tree_node, "rect");
+    int64_t     top_edge  = 0;
+
+    typed_json_lookup_integer_member(rectangle, "y", &top_edge);
+
+    return (int)top_edge;
+}
+
 /* sway's "deco_rect" is the title bar, already narrowed to its tab in tabbed layouts. */
 static int
 lookup_title_bar_width(
@@ -192,6 +219,68 @@ copy_string_member_or_empty(
     return g_strdup(value);
 }
 
+static void
+append_string_element(
+    GPtrArray *strings,
+    JsonArray *array,
+    guint      element_index
+)
+{
+    JsonNode *element = json_array_get_element(array, element_index);
+
+    if (!JSON_NODE_HOLDS_VALUE(element)) {
+        return;
+    }
+
+    if (json_node_get_value_type(element) != G_TYPE_STRING) {
+        return;
+    }
+
+    g_ptr_array_add(strings, g_strdup(json_node_get_string(element)));
+}
+
+/* array may be NULL. */
+static void
+append_string_elements(
+    GPtrArray *strings,
+    JsonArray *array
+)
+{
+    if (array == NULL) {
+        return;
+    }
+
+    for (guint i = 0; i < json_array_get_length(array); i++) {
+        append_string_element(strings, array, i);
+    }
+}
+
+static bool
+lookup_fullscreen_state(
+    JsonObject *window_node
+)
+{
+    int64_t fullscreen_mode = 0;
+
+    typed_json_lookup_integer_member(window_node, "fullscreen_mode", &fullscreen_mode);
+
+    return fullscreen_mode != 0;
+}
+
+/* Elements that are not strings are skipped. */
+static char **
+copy_marks(
+    JsonObject *window_node
+)
+{
+    GPtrArray *marks = g_ptr_array_new();
+
+    append_string_elements(marks, typed_json_lookup_array_member(window_node, "marks"));
+    g_ptr_array_add(marks, NULL);
+
+    return (char **)g_ptr_array_free(marks, FALSE);
+}
+
 static struct compositor_window *
 parse_window(
     JsonObject *window_node,
@@ -207,8 +296,15 @@ parse_window(
         .workspace_name              = g_strdup(workspace_name),
         .process_id                  = lookup_process_id(window_node),
         .title_bar_width             = lookup_title_bar_width(window_node),
+        .content_x                   = rectangle_left_edge(window_node),
+        .content_y                   = rectangle_top_edge(window_node),
         .toplevel_capture_identifier = g_strdup(typed_json_lookup_string_member(window_node, "foreign_toplevel_identifier")),
         .has_keyboard_focus          = typed_json_lookup_boolean_member(window_node, "focused", false),
+        .is_floating                 = g_strcmp0(typed_json_lookup_string_member(window_node, "type"), "floating_con") == 0,
+        .is_fullscreen               = lookup_fullscreen_state(window_node),
+        .is_sticky                   = typed_json_lookup_boolean_member(window_node, "sticky", false),
+        .is_x11_window               = g_strcmp0(typed_json_lookup_string_member(window_node, "shell"), "xwayland") == 0,
+        .marks                       = copy_marks(window_node),
     };
 
     return window;
@@ -323,19 +419,6 @@ collect_window_ids_in_focus_order(
     }
 }
 
-static int
-rectangle_top_edge(
-    JsonObject *tree_node
-)
-{
-    JsonObject *rectangle = typed_json_lookup_object_member(tree_node, "rect");
-    int64_t     top_edge  = 0;
-
-    typed_json_lookup_integer_member(rectangle, "y", &top_edge);
-
-    return (int)top_edge;
-}
-
 /* The scratchpad lives on a hidden output named __i3. */
 static bool
 is_hidden_output_name(
@@ -355,6 +438,8 @@ create_output(
 
     output->output_name                  = g_strdup(typed_json_lookup_string_member(output_node, "name"));
     output->contains_focused_workspace   = output_node == focused_output_node;
+    output->output_x                     = rectangle_left_edge(output_node);
+    output->output_y                     = rectangle_top_edge(output_node);
     output->windows_on_visible_workspace = g_ptr_array_new_with_free_func(destroy_window);
 
     return output;
@@ -581,4 +666,81 @@ compositor_window_format_name_and_process_id(
 )
 {
     return g_strdup_printf("%s %d", window->application_name, window->process_id);
+}
+
+bool
+compositor_window_has_mark(
+    const struct compositor_window *window,
+    const char                     *mark
+)
+{
+    return g_strv_contains((const char *const *)window->marks, mark);
+}
+
+const struct compositor_window *
+compositor_window_tree_find_marked_window(
+    const struct compositor_window_tree *tree,
+    const char                          *mark
+)
+{
+    for (guint i = 0; i < tree->all_windows->len; i++) {
+        const struct compositor_window *window = g_ptr_array_index(tree->all_windows, i);
+
+        if (compositor_window_has_mark(window, mark)) {
+            return window;
+        }
+    }
+
+    return NULL;
+}
+
+static bool
+output_shows_window(
+    const struct compositor_output *output,
+    int64_t                         container_id
+)
+{
+    for (guint i = 0; i < output->windows_on_visible_workspace->len; i++) {
+        const struct compositor_window *window = g_ptr_array_index(output->windows_on_visible_workspace, i);
+
+        if (window->container_id == container_id) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+const struct compositor_output *
+compositor_window_tree_find_output_showing_window(
+    const struct compositor_window_tree *tree,
+    int64_t                              container_id
+)
+{
+    for (guint i = 0; i < tree->outputs->len; i++) {
+        const struct compositor_output *output = g_ptr_array_index(tree->outputs, i);
+
+        if (output_shows_window(output, container_id)) {
+            return output;
+        }
+    }
+
+    return NULL;
+}
+
+const struct compositor_window *
+compositor_window_tree_find_window(
+    const struct compositor_window_tree *tree,
+    int64_t                              container_id
+)
+{
+    for (guint i = 0; i < tree->all_windows->len; i++) {
+        const struct compositor_window *window = g_ptr_array_index(tree->all_windows, i);
+
+        if (window->container_id == container_id) {
+            return window;
+        }
+    }
+
+    return NULL;
 }

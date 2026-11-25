@@ -4,15 +4,15 @@
 #include "workspace-window-bar-settings.h"
 
 static const char *const position_choices[]     = {"bottom", "top", NULL};
-static const char *const click_action_choices[] = {"focus", "close", "nothing", NULL};
+static const char *const click_action_choices[] = {"focus", "close", "nothing", "menu", NULL};
 
 static const struct {
     const char                            *key_name;
     enum workspace_window_bar_click_action default_action;
 } click_keys[WORKSPACE_WINDOW_BAR_MOUSE_BUTTON_COUNT] = {
-    {"left-click",   WORKSPACE_WINDOW_BAR_CLICK_FOCUSES     },
-    {"middle-click", WORKSPACE_WINDOW_BAR_CLICK_CLOSES      },
-    {"right-click",  WORKSPACE_WINDOW_BAR_CLICK_DOES_NOTHING},
+    {"left-click",   WORKSPACE_WINDOW_BAR_CLICK_FOCUSES   },
+    {"middle-click", WORKSPACE_WINDOW_BAR_CLICK_CLOSES    },
+    {"right-click",  WORKSPACE_WINDOW_BAR_CLICK_OPENS_MENU},
 };
 
 static const struct program_configuration_key known_keys[] = {

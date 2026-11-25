@@ -17,8 +17,13 @@ Each library does one job. A library only uses the ones above it.
 | `rendered-text-width-measurement` | How wide text is in pixels in a Pango font                       |
 | `window-title-format-command`     | The command that sets a window's title bar text                  |
 | `window-title-fitting`            | Shorten a title so the title bar text fits                       |
+| `process-information-snapshot`    | A process's command line, directory, memory and state from /proc |
+| `process-signal-handle`           | Signal exactly the process a menu was opened for (pidfd)         |
+| `window-context-menu-target`      | The window and process a window menu acts on                     |
 | `compositor-state-tracker`        | Keep the window tree and focus history current                   |
 | `compositor-bar-appearance`       | Read the sway bar's colors and font                              |
+| `window-context-menu-actions`     | Close, kill, pause, copy and move actions of the window menu     |
+| `window-context-menu-popover`     | The window menu shown on right-click                             |
 | `login-daemon-protocol`           | Encode greetd requests and decode its replies                    |
 | `login-daemon-conversation`       | Run one login attempt with greetd                                |
 | `desktop-session-entries`         | Read the sessions in `/usr/share/wayland-sessions`               |

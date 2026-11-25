@@ -37,3 +37,13 @@ executable(
     ],
     build_by_default: false,
 )
+
+executable(
+    'send-virtual-pointer-events',
+    'send-virtual-pointer-events.c',
+    dependencies: [
+        wlr_virtual_pointer_unstable_v1_protocol_dependency,
+        glib_dependency,
+    ],
+    build_by_default: false,
+)

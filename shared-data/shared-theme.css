@@ -40,3 +40,33 @@
 .desktop-shell-component *:disabled {
     color: var(--theme-secondary-text-color);
 }
+
+/* The window menu, in every program that shows it; submenus are popovers inside it. */
+popover.window-context-menu > contents,
+popover.window-context-menu popover > contents {
+    padding:          4px 0;
+    border:           1px solid var(--theme-border-color);
+    background-color: var(--theme-background-color);
+}
+
+popover.window-context-menu modelbutton {
+    padding: 3px 12px;
+}
+
+popover.window-context-menu label.window-context-menu-header {
+    padding: 3px 12px;
+    color:   var(--theme-secondary-text-color);
+}
+
+popover.window-context-menu modelbutton:hover,
+popover.window-context-menu modelbutton:focus,
+popover.window-context-menu modelbutton:active,
+popover.window-context-menu modelbutton:selected {
+    background-color: var(--theme-accent-color);
+    color:            var(--theme-accent-text-color);
+}
+
+popover.window-context-menu separator {
+    margin:           3px 0;
+    background-color: var(--theme-border-color);
+}

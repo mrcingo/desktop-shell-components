@@ -10,7 +10,7 @@ Check it (layout, function size, plain ASCII):
 
 Test the programs in a headless sway, away from your desktop:
 
-    meson compile -C build send-virtual-key-presses
+    meson compile -C build send-virtual-key-presses send-virtual-pointer-events
     development-tools/test-window-components-in-headless-compositor.sh build OUTPUT_DIRECTORY
 
 Retake the README images:

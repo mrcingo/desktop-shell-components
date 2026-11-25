@@ -3,6 +3,7 @@
 #include "compositor-matched-appearance.h"
 #include "compositor-state-tracker.h"
 #include "per-monitor-objects.h"
+#include "window-context-menu-popover.h"
 #include "window-label-format.h"
 #include "workspace-window-bar-application.h"
 #include "workspace-window-bar-panel.h"
@@ -31,31 +32,68 @@ show_current_windows(
     workspace_window_bar_panel_show_windows(panel, compositor_window_tree_find_output_by_name(tree, output_name));
 }
 
+/* Where a click on a window entry happened, for actions that open a menu. */
+struct window_entry_click {
+    int64_t             container_id;
+    GtkWidget          *menu_parent;
+    const GdkRectangle *menu_position;
+};
+
+static void
+open_window_menu(
+    struct workspace_window_bar_application *bar,
+    const struct window_entry_click         *click
+)
+{
+    const struct compositor_window_tree *tree   = compositor_state_tracker_get_window_tree(bar->compositor_state);
+    const struct compositor_window      *window = compositor_window_tree_find_window(tree, click->container_id);
+
+    if (window == NULL) {
+        return;
+    }
+
+    window_context_menu_popover_show(
+        click->menu_parent,
+        click->menu_position,
+        window_context_menu_target_create(window, "/proc"),
+        compositor_state_tracker_get_ipc_client(bar->compositor_state),
+        NULL,
+        NULL
+    );
+}
+
 static void
 perform_click_action(
     struct workspace_window_bar_application *bar,
     enum workspace_window_bar_click_action   action,
-    int64_t                                  container_id
+    const struct window_entry_click         *click
 )
 {
     if (action == WORKSPACE_WINDOW_BAR_CLICK_FOCUSES) {
-        compositor_state_tracker_focus_window(bar->compositor_state, container_id);
+        compositor_state_tracker_focus_window(bar->compositor_state, click->container_id);
     }
 
     if (action == WORKSPACE_WINDOW_BAR_CLICK_CLOSES) {
-        compositor_state_tracker_close_window(bar->compositor_state, container_id);
+        compositor_state_tracker_close_window(bar->compositor_state, click->container_id);
+    }
+
+    if (action == WORKSPACE_WINDOW_BAR_CLICK_OPENS_MENU) {
+        open_window_menu(bar, click);
     }
 }
 
 /* Buttons beyond the right one, such as side buttons, do nothing. */
 static void
 handle_window_clicked(
-    void   *user_data,
-    int64_t container_id,
-    int     mouse_button
+    void               *user_data,
+    int64_t             container_id,
+    int                 mouse_button,
+    GtkWidget          *menu_parent,
+    const GdkRectangle *menu_position
 )
 {
-    struct workspace_window_bar_application *bar = user_data;
+    struct workspace_window_bar_application *bar   = user_data;
+    const struct window_entry_click          click = {container_id, menu_parent, menu_position};
 
     if (mouse_button < 0) {
         return;
@@ -65,7 +103,7 @@ handle_window_clicked(
         return;
     }
 
-    perform_click_action(bar, bar->settings->click_actions[mouse_button], container_id);
+    perform_click_action(bar, bar->settings->click_actions[mouse_button], &click);
 }
 
 static const struct workspace_window_bar_panel_handler panel_handler = {

@@ -54,7 +54,7 @@ changes.
 	*position* = _bottom_|_top_++
 	*height* = _auto_|_10-200_ (auto matches sway's top bar)++
 	*label* = text with *{name}* *{pid}* *{title}* *{workspace}*++
-	*left-click*, *middle-click*, *right-click* = _focus_|_close_|_nothing_
+	*left-click*, *middle-click*, *right-click* = _focus_|_close_|_menu_|_nothing_ (menu: the window menu, see *desktop-shell-window-context-menu*(1))
 
 *[appearance]*
 	*follow-sway-bar* = _true_|_false_

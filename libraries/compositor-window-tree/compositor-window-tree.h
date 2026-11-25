@@ -21,13 +21,23 @@ struct compositor_window {
     char *workspace_name;   // never NULL
     int   process_id;
     int   title_bar_width; // pixels; 0 when the window shows no title bar
+    int   content_x;       // top-left corner of the window's content, in layout pixels
+    int   content_y;
 
     char *toplevel_capture_identifier; // NULL if the compositor has none
     bool  has_keyboard_focus;
+
+    bool   is_floating;
+    bool   is_fullscreen;
+    bool   is_sticky;
+    bool   is_x11_window; // its process_id is then the X server's, shared by every X11 window
+    char **marks;         // never NULL; may be empty
 };
 
 struct compositor_output {
     char *output_name; // the connector name, such as eDP-1
+    int   output_x;    // top-left corner, in layout pixels
+    int   output_y;
     bool  contains_focused_workspace;
     /* Space that panels such as a top bar reserve above the workspace. */
     int space_reserved_above_workspace;
@@ -54,6 +64,20 @@ const struct compositor_output *compositor_window_tree_find_focused_output(const
  * "container", is named after its title, so a title change renames it.
  */
 bool compositor_window_name_comes_from_title(JsonObject *window_node);
+
+bool compositor_window_has_mark(const struct compositor_window *window, const char *mark);
+
+/* The window with the container ID on any workspace, or NULL. */
+const struct compositor_window *
+compositor_window_tree_find_window(const struct compositor_window_tree *tree, int64_t container_id);
+
+/* The window with the mark on any workspace, or NULL. */
+const struct compositor_window *
+compositor_window_tree_find_marked_window(const struct compositor_window_tree *tree, const char *mark);
+
+/* The output showing the window, or NULL when its workspace is hidden. */
+const struct compositor_output *
+compositor_window_tree_find_output_showing_window(const struct compositor_window_tree *tree, int64_t container_id);
 
 /* The label desktop components show for a window: "foot 4123". Free it with g_free(). */
 char *compositor_window_format_name_and_process_id(const struct compositor_window *window);

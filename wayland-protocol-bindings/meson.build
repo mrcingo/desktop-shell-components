@@ -76,3 +76,28 @@ virtual_keyboard_unstable_v1_protocol_dependency = declare_dependency(
     ),
     dependencies: wayland_client_dependency,
 )
+
+# Used only by the development tools, to point and click in a headless compositor.
+virtual_pointer_description = files('unstable/wlr-virtual-pointer-unstable-v1.xml')
+
+wlr_virtual_pointer_unstable_v1_protocol_dependency = declare_dependency(
+    link_with: static_library(
+        'wlr-virtual-pointer-unstable-v1-protocol',
+        [
+            custom_target(
+                'wlr-virtual-pointer-unstable-v1-protocol.c',
+                input: virtual_pointer_description,
+                output: 'wlr-virtual-pointer-unstable-v1-protocol.c',
+                command: [wayland_scanner_program, 'private-code', '@INPUT@', '@OUTPUT@'],
+            ),
+        ],
+        dependencies: wayland_client_dependency,
+    ),
+    sources: custom_target(
+        'wlr-virtual-pointer-unstable-v1-client-protocol.h',
+        input: virtual_pointer_description,
+        output: 'wlr-virtual-pointer-unstable-v1-client-protocol.h',
+        command: [wayland_scanner_program, 'client-header', '@INPUT@', '@OUTPUT@'],
+    ),
+    dependencies: wayland_client_dependency,
+)

@@ -294,6 +294,36 @@ test_all_windows_carry_title_and_workspace(void)
     unload_example_tree(&example);
 }
 
+/* Window states; marks that are not strings are skipped. */
+static void
+test_window_states_are_parsed(void)
+{
+    struct parsed_example_tree      example = load_example_tree();
+    const struct compositor_window *browser = example_window(&example, "eDP-1", 0);
+
+    g_assert_cmpuint(g_strv_length(browser->marks), ==, 2);
+    g_assert_true(browser->is_sticky);
+    g_assert_true(browser->is_fullscreen);
+    g_assert_false(browser->is_x11_window);
+    unload_example_tree(&example);
+}
+
+static void
+test_marked_windows_are_found(void)
+{
+    struct parsed_example_tree      example = load_example_tree();
+    const struct compositor_window *marked  = compositor_window_tree_find_marked_window(example.tree, "_menu");
+    const struct compositor_output *output  = compositor_window_tree_find_output_showing_window(
+        example.tree,
+        marked->container_id
+    );
+
+    g_assert_cmpint(marked->container_id, ==, 11);
+    g_assert_true(compositor_window_tree_find_window(example.tree, 11) == marked);
+    g_assert_cmpstr(output->output_name, ==, "eDP-1");
+    unload_example_tree(&example);
+}
+
 static const struct {
     const char *test_path;
 
@@ -302,6 +332,8 @@ static const struct {
     {"/compositor-window-tree/outputs",               test_outputs_skip_the_hidden_scratchpad_output   },
     {"/compositor-window-tree/windows",               test_windows_of_visible_workspace_in_layout_order},
     {"/compositor-window-tree/window-details",        test_window_details_are_parsed                   },
+    {"/compositor-window-tree/window-states",         test_window_states_are_parsed                    },
+    {"/compositor-window-tree/marked-windows",        test_marked_windows_are_found                    },
     {"/compositor-window-tree/identifier-and-focus",  test_missing_identifier_and_keyboard_focus       },
     {"/compositor-window-tree/focus-order",           test_focus_order_follows_focus_lists             },
     {"/compositor-window-tree/not-trees",             test_documents_that_are_not_trees_are_rejected   },

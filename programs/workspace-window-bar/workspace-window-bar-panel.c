@@ -30,6 +30,22 @@ format_entry_label(
     return window_label_format_expand(panel->settings->label_format, &values);
 }
 
+/* The entry's rectangle in ancestor's coordinates. */
+static GdkRectangle
+place_within(
+    GtkWidget *entry_widget,
+    GtkWidget *ancestor
+)
+{
+    graphene_rect_t bounds = GRAPHENE_RECT_INIT(0, 0, 0, 0);
+
+    if (!gtk_widget_compute_bounds(entry_widget, ancestor, &bounds)) {
+        return (GdkRectangle){0};
+    }
+
+    return (GdkRectangle){(int)bounds.origin.x, (int)bounds.origin.y, (int)bounds.size.width, (int)bounds.size.height};
+}
+
 /* GDK numbers buttons from 1: left, middle, right. */
 static void
 handle_entry_released(
@@ -43,9 +59,11 @@ handle_entry_released(
     struct workspace_window_bar_panel *panel        = user_data;
     GtkWidget                         *entry_widget = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(click_gesture));
     int64_t                           *container_id = g_object_get_data(G_OBJECT(entry_widget), container_id_data_key);
-    int mouse_button = (int)gtk_gesture_single_get_current_button(GTK_GESTURE_SINGLE(click_gesture)) - 1;
+    int          mouse_button  = (int)gtk_gesture_single_get_current_button(GTK_GESTURE_SINGLE(click_gesture)) - 1;
+    GtkWidget   *menu_parent   = gtk_window_get_child(GTK_WINDOW(gtk_widget_get_root(entry_widget)));
+    GdkRectangle menu_position = place_within(entry_widget, menu_parent);
 
-    panel->handler->handle_window_clicked(panel->user_data, *container_id, mouse_button);
+    panel->handler->handle_window_clicked(panel->user_data, *container_id, mouse_button, menu_parent, &menu_position);
 }
 
 static void

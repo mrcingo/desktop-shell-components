@@ -21,6 +21,7 @@ executable(
         replaced_executable_restart_dependency,
         software_rendering_preference_dependency,
         single_instance_lock_dependency,
+        window_context_menu_popover_dependency,
         window_label_format_dependency,
     ],
     install: true,

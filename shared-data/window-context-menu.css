@@ -1,0 +1,5 @@
+/* The see-through surface that holds the window menu; the menu's look is in shared-theme.css. */
+
+window.window-context-menu-overlay {
+    background-color: transparent;
+}

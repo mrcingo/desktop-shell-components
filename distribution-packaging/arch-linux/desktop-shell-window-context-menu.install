@@ -1,0 +1,3 @@
+post_install() {
+    echo ':: Run: swaymsg reload, then right-click a window title bar'
+}

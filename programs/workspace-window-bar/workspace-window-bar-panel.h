@@ -14,8 +14,17 @@
  */
 
 struct workspace_window_bar_panel_handler {
-    /* mouse_button is 0 for left, 1 for middle and 2 for right. */
-    void (*handle_window_clicked)(void *user_data, int64_t container_id, int mouse_button);
+    /*
+     * mouse_button is 0 for left, 1 for middle and 2 for right. menu_position
+     * is the entry's place in menu_parent, a widget that lives as long as the panel.
+     */
+    void (*handle_window_clicked)(
+        void               *user_data,
+        int64_t             container_id,
+        int                 mouse_button,
+        GtkWidget          *menu_parent,
+        const GdkRectangle *menu_position
+    );
 };
 
 struct workspace_window_bar_panel;

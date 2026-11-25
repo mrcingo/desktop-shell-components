@@ -1,0 +1,68 @@
+desktop-shell-window-context-menu(1)
+
+# NAME
+
+desktop-shell-window-context-menu - menu for a window, opened by right-clicking its title bar
+
+# SYNOPSIS
+
+*desktop-shell-window-context-menu* [*-c* _FILE_] [*-s* _FILE_]
+
+# DESCRIPTION
+
+*desktop-shell-window-context-menu* shows a menu for a window: its title,
+application, process ID and memory, then Close, End process (SIGTERM), Force
+close (SIGKILL), Pause and Resume process, copying the process ID, title,
+application name, command line or working directory, and Floating,
+Fullscreen, Sticky, Move to workspace and Move to scratchpad.
+
+It opens when sway runs a binding that marks the window and names the
+program, as the installed configuration does for right-clicks on title bars:
+
+```
+bindsym button3 mark --add _window-context-menu-target, nop desktop-shell-window-context-menu
+```
+
+Mouse bindings act on the window under the pointer; key bindings act on the
+focused window. The menu opens at the pointer. Process actions are disabled
+for X11 windows, whose process ID belongs to the X server, and signals use a
+pidfd taken when the menu opens, so they never reach a process that reused
+the ID. After a package upgrade, *swaymsg reload* restarts the program from
+the new file.
+
+# OPTIONS
+
+*-h, --help*
+	Show the help message and exit.
+
+*-c, --config* _FILE_
+	Read settings from _FILE_ instead of the usual places.
+
+*-s, --style* _FILE_
+	Load _FILE_ instead of the shipped window-context-menu.css.
+
+# CONFIGURATION
+
+The installed _@sysconfdir@/sway/config.d/60-desktop-shell-window-context-menu.conf_
+starts the program and adds the right-click binding.
+
+# SETTINGS
+
+Read from _$XDG_CONFIG_HOME/desktop-shell-components/window-context-menu.ini_,
+else _/etc/xdg/desktop-shell-components/window-context-menu.ini_. All are
+optional; *swaymsg reload* applies changes.
+
+*[menu]*
+	*enabled* = _true_|_false_
+
+*[appearance]*
+	*follow-sway-bar* = _true_|_false_
+
+# STYLING
+
+The menu is a popover with the _window-context-menu_ class, styled in
+_shared-theme.css_ with the theme's color variables.
+
+# SEE ALSO
+
+*sway*(5), *desktop-shell-workspace-window-bar*(1)
